@@ -1,0 +1,113 @@
+{
+  "rules": {
+    "admins": {
+      "$uid": {
+        ".read": "auth.uid === $uid"
+      }
+    },
+    "users": {
+      ".read": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      "$uid": {
+        ".read": "auth.uid === $uid || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+        ".write": "auth.uid === $uid || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'"
+      }
+    },
+    "tx": {
+      ".read": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      "$uid": {
+        ".read": "auth.uid === $uid || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+        ".write": "auth.uid === $uid || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'"
+      }
+    },
+    "requests": {
+      ".read": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      ".write": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      "$uid": {
+        ".read": "auth.uid === $uid || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+        "$rid": {
+          ".write": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com' || (auth.uid === $uid && !data.exists() && newData.child('status').val() === 'pending')"
+        }
+      }
+    },
+    "coins": {
+      ".read": "auth != null",
+      ".write": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'"
+    },
+    "logs": {
+      ".read": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      ".indexOn": [
+        "ts"
+      ],
+      "$id": {
+        ".write": "auth != null && !data.exists() && newData.child('uid').val() === auth.uid"
+      }
+    },
+    "directory": {
+      ".read": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth.uid === $uid || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'"
+      }
+    },
+    "meta": {
+      ".read": "auth != null",
+      ".write": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'"
+    },
+    "ids": {
+      ".read": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      ".write": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      "$id": {
+        ".read": "auth != null",
+        ".write": "auth != null && !data.exists() && newData.val() === auth.uid"
+      }
+    },
+    "transfers": {
+      ".write": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      "$to": {
+        ".read": "auth.uid === $to || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+        "$tid": {
+          ".write": "(!data.exists() && auth.uid === newData.child('from').val() && newData.child('status').val() === 'pending' && newData.child('amount').isNumber() && newData.child('amount').val() > 0) || (data.exists() && auth.uid === $to && data.child('status').val() === 'pending' && newData.child('status').val() === 'received' && newData.child('amount').val() === data.child('amount').val())"
+        }
+      }
+    },
+    "friendReq": {
+      ".write": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      "$to": {
+        ".read": "auth.uid === $to || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+        "$from": {
+          ".read": "auth.uid === $to || auth.uid === $from",
+          ".write": "(auth.uid === $from && !data.exists() && newData.child('status').val() === 'pending') || auth.uid === $to"
+        }
+      }
+    },
+    "friends": {
+      ".write": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      "$uid": {
+        ".read": "auth.uid === $uid || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+        "$other": {
+          ".write": "auth.uid === $uid || (auth.uid === $other && root.child('friendReq').child($other).child($uid).child('status').val() === 'accepted')"
+        }
+      }
+    },
+    "chats": {
+      ".read": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      ".write": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      "$cid": {
+        ".read": "auth != null && $cid.contains(auth.uid)",
+        "$mid": {
+          ".write": "auth != null && $cid.contains(auth.uid) && !data.exists() && newData.child('from').val() === auth.uid",
+          ".validate": "newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 500"
+        }
+      }
+    },
+    "inbox": {
+      ".write": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      "$uid": {
+        ".read": "auth.uid === $uid || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+        "$other": {
+          ".write": "auth.uid === $uid || auth.uid === $other"
+        }
+      }
+    }
+  }
+}
