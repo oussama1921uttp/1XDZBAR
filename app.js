@@ -409,6 +409,60 @@ function setupShell() {
   if (S.isAdmin && S.permissionProblem) showPermissionHelp();
 }
 
+/* ---------- القائمة الجانبية على اليسار: زر ☰ أو سحب بالإصبع على الجوال ---------- */
+const isDrawer = () => window.matchMedia('(max-width: 900px)').matches;
+
+function toggleMenu(force) {
+  const open = force === undefined ? !document.body.classList.contains('menu-open') : force;
+  document.body.classList.toggle('menu-open', open);
+}
+
+(function enableMenuSwipe() {
+  const nav = $('#nav'), scrim = $('#scrim');
+  if (!nav || !scrim) return;
+
+  let start = null, dragging = false, opening = false, width = 0;
+
+  document.addEventListener('touchstart', (e) => {
+    if (!isDrawer()) return;
+    const x = e.touches[0].clientX, y = e.touches[0].clientY;
+    const open = document.body.classList.contains('menu-open');
+    if (!open && x > 30) return;   // الفتح يبدأ من حافة اليسار، والإغلاق من أي مكان
+    start = { x, y };
+    opening = !open;
+    dragging = false;
+    width = nav.offsetWidth;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!start) return;
+    const dx = e.touches[0].clientX - start.x, dy = e.touches[0].clientY - start.y;
+    if (!dragging) {
+      if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy)) return;   // ليس سحباً أفقياً
+      dragging = true;
+      nav.classList.add('dragging');
+      scrim.style.transition = 'none';
+    }
+    // offset: ‎-width مغلقة، 0 مفتوحة بالكامل
+    const offset = Math.max(-width, Math.min(0, opening ? -width + dx : dx));
+    nav.style.transform = `translateX(${offset}px)`;
+    scrim.style.opacity = String(1 + offset / width);
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    if (!start) return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    const wasDragging = dragging;
+    nav.classList.remove('dragging');
+    nav.style.transform = '';
+    scrim.style.transition = '';
+    scrim.style.opacity = '';
+    start = null;
+    dragging = false;
+    if (wasDragging) toggleMenu(opening ? dx > width / 3 : dx > -width / 3);
+  }, { passive: true });
+})();
+
 let started = false;
 function startPage() {
   startAuthListener(() => {

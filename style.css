@@ -235,23 +235,34 @@ svg { width: 100%; height: auto; display: block; }
 }
 
 /* ========== الهاتف ========== */
-@media (max-width: 720px) {
-  #shell { flex-direction: column; }
-  #nav { width: 100%; }
+/* ========== القائمة الجانبية على اليسار ========== */
+#nav { order: 2; }                       /* في الصفحات العربية: بعد المحتوى = على اليسار */
+nav { border-inline-end: 0; border-inline-start: 1px solid var(--bd); }
+#topbar, #scrim { display: none; }
+#nav.dragging { transition: none !important; }
 
-  nav {
-    position: static;
-    height: auto;
-    flex-direction: row;
-    align-items: center;
-    overflow-x: auto;
-    padding: 8px;
-    border: 0;
-    border-bottom: 1px solid var(--bd);
+/* الجوال والأجهزة اللوحية: القائمة درج يُسحب من حافة اليسار */
+@media (max-width: 900px) {
+  #shell { flex-direction: column; }
+
+  #topbar {
+    display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 30;
+    padding: 10px 14px; background: var(--card); border-bottom: 1px solid var(--bd); font-size: 18px;
   }
-  nav .u, nav .sp { display: none; }
-  nav .brand { padding: 0 8px; flex: none; font-size: 18px; }
-  nav a { white-space: nowrap; padding: 6px 12px; }
+  #menu-btn { margin: 0; padding: 4px 12px; font-size: 20px; }
+
+  #nav {
+    position: fixed; top: 0; bottom: 0; left: 0; order: 0; z-index: 50;
+    width: 270px; max-width: 84vw; transform: translateX(-105%); transition: transform .25s ease;
+  }
+  body.menu-open #nav { transform: translateX(0); box-shadow: 0 0 40px rgba(0, 0, 0, .35); }
+  nav { position: static; height: 100%; border: 0; }
+
+  #scrim {
+    display: block; position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, .45);
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  body.menu-open #scrim { opacity: 1; pointer-events: auto; }
 
   .grid2, .row2 { grid-template-columns: 1fr; }
   main { padding: 12px; }
