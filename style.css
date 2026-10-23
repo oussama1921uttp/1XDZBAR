@@ -341,3 +341,19 @@ nav .u span { display: block; font-size: 12px; color: var(--mu); }
 .a-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
 .a-row span { color: var(--mu); }
 .pm { display: flex; align-items: center; gap: 10px; }
+
+/* ========== المفضلة والبحث والبوتات ========== */
+textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--bd); border-radius: 12px; background: var(--bg); color: var(--tx); font: inherit; resize: vertical; }
+textarea:focus { outline: 2px solid var(--pr); }
+.search { margin-bottom: 8px; }
+.coin-l { display: flex; align-items: center; gap: 8px; }
+button.star { margin: 0; padding: 0 4px; background: transparent; color: var(--mu); font-size: 22px; line-height: 1; }
+button.star.on { color: #f59e0b; }
+button.big-star { font-size: 28px; vertical-align: middle; }
+
+.bots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.bot { border: 1px solid var(--bd); border-radius: 16px; padding: 14px; background: var(--bg); display: flex; flex-direction: column; }
+.bot-head { display: flex; align-items: center; gap: 10px; }
+.bot-av { background: var(--grad); font-size: 20px; }
+.bot-desc { flex: 1; margin: 10px 0; white-space: pre-wrap; }
+.bot-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

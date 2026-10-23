@@ -19,6 +19,8 @@
     <a href="index.html" data-nav="home">🏠 الرئيسية</a>
     <a href="wallet.html" data-nav="wallet">👛 محفظتي</a>
     <a href="transfer.html" data-nav="transfer">💸 تحويل</a>
+    <a href="favorites.html" data-nav="favorites">⭐ مفضلتي</a>
+    <a href="bots.html" data-nav="bots">🤖 بوت</a>
     <a href="history.html" data-nav="history">🧾 السجل</a>
     <a href="add_money.html" data-nav="add_money">➕ إيداع</a>
     <a href="directing_money.html" data-nav="directing_money">➖ سحب</a>
@@ -27,6 +29,7 @@
     <a href="setting.html" data-nav="setting">⚙️ الإعدادات</a>
     <a href="admin.html" data-nav="admin" data-admin hidden>🛡️ الأدمن</a>
     <a href="admin_trade.html" data-nav="admin_trade" data-admin hidden>📊 إدارة العملات</a>
+    <a href="admin_bots.html" data-nav="admin_bots" data-admin hidden>🤖 أدمن بوت</a>
     <div class="sp"></div>
     <a href="login.html" onclick="logout(); return false;">🚪 خروج</a>
   </nav></div>
@@ -84,6 +87,16 @@
 
   <!-- كل رسائل الموقع (تظهر في toast أو في النوافذ) — عدّل النص هنا -->
   <div id="msgs" hidden>
+    <span data-k="ok_bot_bought">تم شراء البوت</span>
+    <span data-k="ok_bot_added">تمت إضافة البوت</span>
+    <span data-k="err_bot_owned">لديك هذا البوت بالفعل</span>
+    <span data-k="err_bot">أدخل اسماً وسعراً صحيحين</span>
+    <span data-k="confirm_buy_bot">شراء {name} بسعر {price}؟</span>
+    <span data-k="confirm_delete_bot">حذف هذا البوت؟</span>
+    <span data-k="log_bot_add">إضافة بوت</span>
+    <span data-k="log_bot_del">حذف بوت</span>
+    <span data-k="tx_bot">شراء بوت</span>
+    <span data-k="note_bot">{name}</span>
     <span data-k="err_range">الحد الأدنى أكبر من -100 والأقصى أكبر من الأدنى</span>
     <span data-k="lbl_cash">النقد</span>
     <span data-k="admin_name">المدير</span>

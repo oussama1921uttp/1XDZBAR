@@ -129,9 +129,10 @@ const S = {
   isAdmin: false,
   tx: [],                // معاملاته
   coinConfig: {},        // العملات من قاعدة البيانات
+  favs: {},              // العملات المفضلة: الرمز -> true
   registering: false,
   permissionProblem: false,
-  listening: { config: false, balance: false, transfers: false, requests: false }
+  listening: { config: false, balance: false, transfers: false, requests: false, favs: false }
 };
 
 function saveUser() {
@@ -201,11 +202,12 @@ async function loadUser(uid, email) {
   S.uid = uid;
   S.isAdmin = (email || '').toLowerCase() === ADMIN_EMAIL;
 
-  const [profile, tx, coins, adminNode] = await Promise.all([
+  const [profile, tx, coins, adminNode, favNode] = await Promise.all([
     db.ref('users/' + uid).get(),
     db.ref('tx/' + uid).get(),
     db.ref('coins').get(),
-    db.ref('admins/' + uid).get().catch(() => ({ val: () => null }))
+    db.ref('admins/' + uid).get().catch(() => ({ val: () => null })),
+    db.ref('favorites/' + uid).get().catch(() => ({ val: () => null }))
   ]);
 
   if (adminNode.val() === true) S.isAdmin = true;
@@ -225,6 +227,7 @@ async function loadUser(uid, email) {
 
   S.tx = Object.values(tx.val() || {}).sort((a, b) => b.ts - a.ts);
   S.coinConfig = coins.val() || {};
+  S.favs = favNode.val() || {};
   refreshCoins();
 
   if (!S.user) return;
@@ -265,6 +268,14 @@ async function loadUser(uid, email) {
   if (!S.listening.transfers) {
     S.listening.transfers = true;
     db.ref('transfers/' + uid).on('child_added', (snap) => receiveTransfer(snap.key, snap.val()), () => {});
+  }
+  if (!S.listening.favs) {
+    S.listening.favs = true;
+    db.ref('favorites/' + uid).on('value', (snap) => {
+      S.favs = snap.val() || {};
+      refreshStars();
+      if (started && pageKey === 'favorites') renderCoinList();
+    }, () => {});
   }
 }
 
@@ -488,23 +499,36 @@ async function doRegister() {
   }
 }
 
-/* ===== index.html ===== */
+/* ===== index.html و favorites.html: قائمة العملات ===== */
 function coinRowData(c) {
   const ch = coinChange(c);
   return { s: c.s, n: c.n, p: fd(c.p), c: ch.text, cc: ch.cls };
 }
 
-function renderCoinList() {
-  renderRows('#coins', '#coins-empty', 'tpl-coin', COINS.map(coinRowData), {});
-  $$('#coins > *').forEach((row, i) => {
-    row.dataset.sym = COINS[i].s;
-    row.addEventListener('click', () => { location.href = 'trade.html?coin=' + COINS[i].s; });
-  });
+// العملات الظاهرة: في المفضلة ما أضفته، وفي الرئيسية ما يطابق البحث
+function visibleCoins() {
+  if (pageKey === 'favorites') return COINS.filter((c) => S.favs[c.s]);
+  const q = $('#cq') ? $('#cq').value.trim().toLowerCase() : '';
+  return q ? COINS.filter((c) => c.s.toLowerCase().includes(q) || String(c.n || '').toLowerCase().includes(q)) : COINS;
 }
 
-function homeLive() {
-  if (COINS.length !== $$('#coins [data-sym]').length) return renderCoinList();
-  COINS.forEach((c) => {
+function renderCoinList() {
+  const list = visibleCoins();
+  renderRows('#coins', '#coins-empty', 'tpl-coin', list.map(coinRowData), {
+    star: (d, ev) => { ev.stopPropagation(); toggleFavorite(d.s); }
+  });
+  $$('#coins > *').forEach((row, i) => {
+    row.dataset.sym = list[i].s;
+    $('.star', row).dataset.star = list[i].s;
+    row.addEventListener('click', () => { location.href = 'trade.html?coin=' + list[i].s; });
+  });
+  refreshStars();
+}
+
+function coinListLive() {
+  const list = visibleCoins();
+  if (list.length !== $$('#coins [data-sym]').length) return renderCoinList();
+  list.forEach((c) => {
     const row = $(`#coins [data-sym="${c.s}"]`);
     if (!row) return;
     const d = coinRowData(c);
@@ -513,6 +537,32 @@ function homeLive() {
     ch.textContent = d.c;
     ch.className = d.cc;
   });
+}
+
+/* ---- النجمة: إضافة العملة إلى المفضلة أو نزعها ---- */
+function refreshStars() {
+  $$('[data-star]').forEach((el) => {
+    const on = !!S.favs[el.dataset.star];
+    el.textContent = on ? '★' : '☆';
+    el.classList.toggle('on', on);
+  });
+}
+
+async function toggleFavorite(sym) {
+  const wasOn = !!S.favs[sym];
+  if (wasOn) delete S.favs[sym]; else S.favs[sym] = true;
+  refreshStars();
+  if (pageKey === 'favorites') renderCoinList();
+
+  try {
+    const ref = db.ref(`favorites/${S.uid}/${sym}`);
+    await (wasOn ? ref.remove() : ref.set(true));
+  } catch (err) {
+    if (wasOn) S.favs[sym] = true; else delete S.favs[sym];   // نتراجع إن فشل الحفظ
+    refreshStars();
+    if (pageKey === 'favorites') renderCoinList();
+    fail(err, 'f_save');
+  }
 }
 
 /* ===== trade.html ===== */
@@ -526,6 +576,7 @@ function tradeDraw() {
   const qty = u.h[c.s] || 0, invested = u.cost[c.s] || 0, value = qty * c.p, pnl = value - invested;
 
   bind('sym', c.s);
+  $('#trade-star').dataset.star = c.s;
   bind('cname', c.n);
   bind('price', fd(c.p));
   bind('qty', qty.toFixed(6) + ' ' + c.s);
@@ -534,6 +585,7 @@ function tradeDraw() {
   bind('pnl', invested ? (pnl >= 0 ? '+' : '') + fd(pnl) : '-');
   $$('[data-bind="pnl"]').forEach((el) => { el.className = pnl >= 0 ? 'up' : 'dn'; });
   $('#chart').innerHTML = renderChart(c);
+  refreshStars();
 }
 
 // isBuy: 1 شراء، 0 بيع
@@ -1110,7 +1162,7 @@ async function adminDelete(uid) {
   try {
     const pid = ADMIN_USERS[uid] && ADMIN_USERS[uid].pid;
     await Promise.all([
-      ...['users', 'tx', 'requests', 'directory', 'inbox', 'friends', 'friendReq', 'transfers'].map((n) => db.ref(n + '/' + uid).remove()),
+      ...['users', 'tx', 'requests', 'directory', 'inbox', 'friends', 'friendReq', 'transfers', 'userBots', 'favorites'].map((n) => db.ref(n + '/' + uid).remove()),
       pid ? db.ref('ids/' + pid).remove() : null
     ]);
     await logAction(t('log_delete_acc'), uid);
@@ -1228,14 +1280,14 @@ async function adminPurge() {
 
   try {
     const [usersSnap, idsSnap] = await Promise.all([db.ref('users').get(), db.ref('ids').get()]);
-    const nodes = ['users', 'tx', 'requests', 'directory', 'inbox', 'friends', 'friendReq', 'transfers'];
+    const nodes = ['users', 'tx', 'requests', 'directory', 'inbox', 'friends', 'friendReq', 'transfers', 'userBots', 'favorites'];
     const updates = { chats: null };
 
     Object.keys(usersSnap.val() || {}).forEach((uid) => {
       if (uid === S.uid) return;
       nodes.forEach((n) => { updates[n + '/' + uid] = null; });
     });
-    ['inbox', 'friends', 'friendReq', 'transfers'].forEach((n) => { updates[n + '/' + S.uid] = null; });
+    ['inbox', 'friends', 'friendReq', 'transfers', 'userBots', 'favorites'].forEach((n) => { updates[n + '/' + S.uid] = null; });
     Object.entries(idsSnap.val() || {}).forEach(([pid, uid]) => { if (uid !== S.uid) updates['ids/' + pid] = null; });
 
     await db.ref().update(updates);
@@ -1332,11 +1384,108 @@ async function deleteAllCoins() {
 }
 
 
+/* ===== bots.html: متجر البوتات ===== */
+let BOTS = {};      // id -> { name, price, desc, ts }
+let MY_BOTS = {};   // botId -> سجل الشراء
+
+async function botsInit() {
+  const [all, mine] = await Promise.all([db.ref('bots').get(), db.ref('userBots/' + S.uid).get()]);
+  BOTS = all.val() || {};
+  MY_BOTS = {};
+  Object.values(mine.val() || {}).forEach((r) => { MY_BOTS[r.botId] = r; });
+  renderBots();
+}
+
+function renderBots() {
+  const items = Object.entries(BOTS)
+    .sort(([, a], [, b]) => b.ts - a.ts)
+    .map(([id, b]) => ({ id, name: b.name, desc: b.desc, price: fd(b.price), owned: !!MY_BOTS[id], canBuy: !MY_BOTS[id] }));
+  renderRows('#bots', '#bots-empty', 'tpl-bot', items, { buy: (d) => buyBot(d.id) });
+
+  const mine = Object.values(MY_BOTS).sort((a, b) => b.ts - a.ts).map((r) => ({ name: r.name, price: fd(r.price), d: r.d }));
+  renderRows('#mybots', '#mybots-empty', 'tpl-mybot', mine, {});
+}
+
+async function buyBot(id) {
+  const bot = BOTS[id];
+  if (!bot) return;
+  if (MY_BOTS[id]) return toast('err_bot_owned');
+  if (S.user.bal < bot.price) return toast('err_funds');
+  if (!confirm(t('confirm_buy_bot', { name: bot.name, price: fd(bot.price) }))) return;
+
+  const key = db.ref('userBots/' + S.uid).push().key;
+  const record = { botId: id, name: bot.name, price: bot.price, d: nowText(), ts: Date.now() };
+
+  try {
+    // خصم السعر وتسجيل الشراء في عملية واحدة
+    await db.ref().update({
+      ['users/' + S.uid + '/bal']: firebase.database.ServerValue.increment(-bot.price),
+      [`userBots/${S.uid}/${key}`]: record
+    });
+    S.user.bal -= bot.price;
+    await addTx(t('tx_bot'), '-' + f(bot.price), t('note_bot', { name: bot.name }));
+    MY_BOTS[id] = record;
+    bindUser();
+    renderBots();
+    toast('ok_bot_bought');
+  } catch (err) {
+    fail(err, 'f_exec');
+  }
+}
+
+/* ===== admin_bots.html: إدارة البوتات (للأدمن) ===== */
+async function adminBotsInit() { await loadAdminBots(); }
+
+async function loadAdminBots() {
+  try {
+    BOTS = (await db.ref('bots').get()).val() || {};
+    const items = Object.entries(BOTS)
+      .sort(([, a], [, b]) => b.ts - a.ts)
+      .map(([id, b]) => ({ id, name: b.name, desc: b.desc, price: fd(b.price) }));
+    renderRows('#adm-bots', '#adm-bots-empty', 'tpl-adm-bot', items, { del: (d) => deleteBot(d.id) });
+  } catch (err) {
+    fail(err, 'f_load');
+  }
+}
+
+async function addBot() {
+  const name = $('#bot-name').value.trim();
+  const price = parseFloat($('#bot-price').value);
+  if (!name || !(price > 0)) return toast('err_bot');
+
+  try {
+    const key = db.ref('bots').push().key;
+    await db.ref('bots/' + key).set({ name, price, desc: $('#bot-desc').value.trim(), ts: Date.now() });
+    logAction(t('log_bot_add'), `${name} — ${fd(price)}`);
+    ['bot-name', 'bot-price', 'bot-desc'].forEach((id) => { $('#' + id).value = ''; });
+    toast('ok_bot_added');
+    loadAdminBots();
+  } catch (err) {
+    fail(err, 'f_exec');
+  }
+}
+
+async function deleteBot(id) {
+  if (!confirm(t('confirm_delete_bot'))) return;
+  try {
+    await db.ref('bots/' + id).remove();
+    logAction(t('log_bot_del'), (BOTS[id] || {}).name || id);
+    toast('ok_deleted');
+    loadAdminBots();
+  } catch (err) {
+    fail(err, 'f_delete');
+  }
+}
+
+
 /* ---------- 7) ربط الصفحات وتشغيل التطبيق ---------- */
 const PAGES = {
   login: {},
   register: { init: changeMethod },
-  home: { init: renderCoinList, live: homeLive },
+  home: { init: renderCoinList, live: coinListLive },
+  favorites: { init: renderCoinList, live: coinListLive },
+  bots: { init: botsInit },
+  admin_bots: { init: adminBotsInit },
   trade: { init: tradeDraw, live: tradeDraw },
   wallet: { init: walletInit, live: walletInit },
   history: { init: historyInit },
