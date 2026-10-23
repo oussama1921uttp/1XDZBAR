@@ -9,7 +9,10 @@
       ".read": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
       "$uid": {
         ".read": "auth.uid === $uid || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
-        ".write": "auth.uid === $uid || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'"
+        ".write": "auth.uid === $uid || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+        "bal": {
+          ".write": "auth != null && newData.isNumber() && newData.val() > data.val()"
+        }
       }
     },
     "tx": {
@@ -66,7 +69,7 @@
       "$to": {
         ".read": "auth.uid === $to || root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
         "$tid": {
-          ".write": "(!data.exists() && auth.uid === newData.child('from').val() && newData.child('status').val() === 'pending' && newData.child('amount').isNumber() && newData.child('amount').val() > 0) || (data.exists() && auth.uid === $to && data.child('status').val() === 'pending' && newData.child('status').val() === 'received' && newData.child('amount').val() === data.child('amount').val())"
+          ".write": "(!data.exists() && auth.uid === newData.child('from').val() && (newData.child('status').val() === 'credited' || newData.child('status').val() === 'pending') && newData.child('amount').isNumber() && newData.child('amount').val() > 0) || (data.exists() && auth.uid === $to && (data.child('status').val() === 'credited' || data.child('status').val() === 'pending') && newData.child('status').val() === 'received' && newData.child('amount').val() === data.child('amount').val())"
         }
       }
     },
