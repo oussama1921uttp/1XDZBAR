@@ -15,7 +15,7 @@
   <div id="shell">
   <div id="nav"><nav>
     <div class="brand"><span class="logo"><span class="logo-x">1X</span><span class="logo-t">DZBAR</span></span></div>
-    <div class="u"><b data-bind="name"></b><span data-bind="total"></span><span>ID: <span data-bind="pid"></span></span></div>
+    <div class="u"><div class="un"><b data-bind="name"></b><i class="vb" data-mybadge></i></div><span data-bind="total"></span><span>ID: <span data-bind="pid"></span></span></div>
     <a href="index.html" data-nav="home">🏠 الرئيسية</a>
     <a href="wallet.html" data-nav="wallet">👛 محفظتي</a>
     <a href="transfer.html" data-nav="transfer">💸 تحويل</a>
@@ -96,7 +96,7 @@
       </div>
 
       <div class="sc"><table>
-        <thead><tr><th>ID</th><th>المستخدم</th><th>الاسم</th><th>البريد</th><th>الهاتف</th><th>الولاية</th><th>الدفع</th><th>الأصول</th><th>النقد</th><th>الإجمالي</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>المستخدم</th><th>الاسم</th><th>البريد</th><th>الهاتف</th><th>الولاية</th><th>الدفع</th><th>الأصول</th><th>النقد</th><th>الإجمالي</th><th>التوثيق</th><th></th></tr></thead>
         <tbody id="adm-users"></tbody>
       </table></div>
     </div>
@@ -139,6 +139,7 @@
     <tr>
       <td><b data-f="pid"></b></td><td data-f="user"></td><td data-f="name"></td><td data-f="email"></td><td data-f="phone"></td><td data-f="wil"></td>
       <td data-f="pay"></td><td data-f="assets"></td><td><b data-f="cash"></b></td><td data-f="tot"></td>
+      <td class="nowrap"><i class="vb" data-c="vb"></i> <button class="l" data-do="verify" data-show="canVerify" data-f="vlabel"></button></td>
       <td class="nowrap">
         <input class="w80" type="number" min="0" step="any" placeholder="DZD">
         <button class="g sm" data-do="plus">+</button><button class="r sm" data-do="minus">−</button>
@@ -156,6 +157,12 @@
 
   <!-- كل رسائل الموقع (تظهر في toast أو في النوافذ) — عدّل النص هنا -->
   <div id="msgs" hidden>
+    <span data-k="ok_verified">تم توثيق الحساب</span>
+    <span data-k="ok_unverified">تم إلغاء التوثيق</span>
+    <span data-k="log_verify">توثيق حساب</span>
+    <span data-k="log_unverify">إلغاء توثيق حساب</span>
+    <span data-k="btn_verify">توثيق</span>
+    <span data-k="btn_unverify">إلغاء التوثيق</span>
     <span data-k="ok_bot_bought">تم شراء البوت</span>
     <span data-k="ok_bot_added">تمت إضافة البوت</span>
     <span data-k="err_bot_owned">لديك هذا البوت بالفعل</span>

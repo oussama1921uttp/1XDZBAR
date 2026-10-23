@@ -121,6 +121,19 @@ function toggleTheme() {
 
 const REQUEST_CLASS = { pending: 'b-pending', approved: 'b-ok', rejected: 'b-no' };
 
+/* علامة التوثيق: زرقاء للحسابات الموثّقة، حمراء للأدمن.
+   مصدرها directory/{uid}/badge ولا يكتبها إلا الأدمن (تحمي ذلك القواعد). */
+const BADGES = {};   // uid -> 'blue' | 'red' | ''
+const badgeClass = (b) => (b === 'red' ? 'vb-red' : b === 'blue' ? 'vb-blue' : '');
+const myBadge = () => (S.isAdmin ? 'red' : S.badge);
+
+async function loadBadges(uids) {
+  await Promise.all(uids.filter((u) => BADGES[u] === undefined).map(async (u) => {
+    try { BADGES[u] = (await db.ref('directory/' + u + '/badge').get()).val() || ''; }
+    catch (e) { BADGES[u] = ''; }
+  }));
+}
+
 
 /* ---------- 3) الحالة والبيانات ---------- */
 const S = {
@@ -130,6 +143,7 @@ const S = {
   tx: [],                // معاملاته
   coinConfig: {},        // العملات من قاعدة البيانات
   favs: {},              // العملات المفضلة: الرمز -> true
+  badge: '',             // علامة حسابي: blue أو فارغ
   registering: false,
   permissionProblem: false,
   listening: { config: false, balance: false, transfers: false, requests: false, favs: false }
@@ -202,12 +216,13 @@ async function loadUser(uid, email) {
   S.uid = uid;
   S.isAdmin = (email || '').toLowerCase() === ADMIN_EMAIL;
 
-  const [profile, tx, coins, adminNode, favNode] = await Promise.all([
+  const [profile, tx, coins, adminNode, favNode, badgeNode] = await Promise.all([
     db.ref('users/' + uid).get(),
     db.ref('tx/' + uid).get(),
     db.ref('coins').get(),
     db.ref('admins/' + uid).get().catch(() => ({ val: () => null })),
-    db.ref('favorites/' + uid).get().catch(() => ({ val: () => null }))
+    db.ref('favorites/' + uid).get().catch(() => ({ val: () => null })),
+    db.ref('directory/' + uid + '/badge').get().catch(() => ({ val: () => null }))
   ]);
 
   if (adminNode.val() === true) S.isAdmin = true;
@@ -228,6 +243,7 @@ async function loadUser(uid, email) {
   S.tx = Object.values(tx.val() || {}).sort((a, b) => b.ts - a.ts);
   S.coinConfig = coins.val() || {};
   S.favs = favNode.val() || {};
+  S.badge = badgeNode.val() || '';
   refreshCoins();
 
   if (!S.user) return;
@@ -250,9 +266,10 @@ async function loadUser(uid, email) {
 
   // دليل الأسماء ومعرّف الأدمن
   db.ref('directory/' + uid)
-    .set({ name: S.isAdmin ? t('president') : S.user.name, user: S.user.user || '', pid: S.user.pid || '' })
+    .update({ name: S.isAdmin ? t('president') : S.user.name, user: S.user.user || '', pid: S.user.pid || '' })
     .catch(() => {});
   if (S.isAdmin) db.ref('meta/adminUid').set(uid).catch(() => { S.permissionProblem = true; });
+  if (S.isAdmin) db.ref('directory/' + uid + '/badge').set('red').catch(() => {});
 
   // متابعات حيّة
   if (!S.listening.config) {
@@ -370,6 +387,7 @@ function bindUser() {
   bind('pid', u.pid || '');
   bind('total', fd(total(u)));
   bind('cash', fd(u.bal));
+  $$('[data-mybadge]').forEach((el) => { el.className = 'vb ' + badgeClass(myBadge()); });
 }
 
 function setupShell() {
@@ -743,6 +761,7 @@ async function lookupRecipient() {
   const pid = $('#tid').value.trim();
   const out = $('#tn');
   out.className = '';
+  $('#tn-vb').className = 'vb';
   if (pid.length < 8) { out.textContent = ''; return; }
   if (!/^\d{8}$/.test(pid)) { out.textContent = t('rcp_invalid'); return; }
   if (pid === S.user.pid) { out.textContent = t('rcp_self'); return; }
@@ -753,6 +772,7 @@ async function lookupRecipient() {
     if (!uid) { out.className = 'dn'; out.textContent = t('rcp_none'); return; }
     const d = (await db.ref('directory/' + uid).get()).val() || {};
     RECIPIENT = { uid, pid, name: d.name || t('rcp_user') };
+    $('#tn-vb').className = 'vb ' + badgeClass(d.badge);
     out.className = 'up';
     out.textContent = t('rcp_found', { name: RECIPIENT.name });
   } catch (err) {
@@ -799,8 +819,16 @@ const NET = { adminUid: null, friends: {}, reqs: {}, inbox: {}, dir: {} };
 /* ===== friends.html ===== */
 function friendsInit() {
   db.ref('meta/adminUid').get().then((s) => { NET.adminUid = s.val(); });
-  db.ref('friends/' + S.uid).on('value', (s) => { NET.friends = s.val() || {}; renderFriends(); });
-  db.ref('friendReq/' + S.uid).on('value', (s) => { NET.reqs = s.val() || {}; renderFriendRequests(); });
+  db.ref('friends/' + S.uid).on('value', async (s) => {
+    NET.friends = s.val() || {};
+    await loadBadges(Object.keys(NET.friends));
+    renderFriends();
+  });
+  db.ref('friendReq/' + S.uid).on('value', async (s) => {
+    NET.reqs = s.val() || {};
+    await loadBadges(Object.keys(NET.reqs));
+    renderFriendRequests();
+  });
 }
 
 async function sendFriendRequest() {
@@ -826,7 +854,7 @@ async function sendFriendRequest() {
 }
 
 function renderFriendRequests() {
-  const items = Object.entries(NET.reqs).map(([uid, r]) => ({ uid, name: r.fromName, pid: r.fromPid }));
+  const items = Object.entries(NET.reqs).map(([uid, r]) => ({ uid, name: r.fromName, pid: r.fromPid, vb: badgeClass(BADGES[uid]) }));
   renderRows('#reqs', '#reqs-empty', 'tpl-freq', items, {
     accept: (d) => acceptRequest(d.uid),
     reject: (d) => rejectRequest(d.uid)
@@ -863,7 +891,7 @@ async function rejectRequest(fromUid) {
 function renderFriends() {
   const items = Object.entries(NET.friends)
     .sort(([, a], [, b]) => a.name.localeCompare(b.name))
-    .map(([uid, d]) => ({ uid, name: d.name, pid: d.pid }));
+    .map(([uid, d]) => ({ uid, name: d.name, pid: d.pid, vb: badgeClass(BADGES[uid]) }));
   renderRows('#friends', '#friends-empty', 'tpl-friend', items, {
     chat: (d) => { location.href = 'messages.html?chat=' + d.uid; },
     pay: (d) => { location.href = 'transfer.html?to=' + d.pid; }
@@ -875,10 +903,18 @@ const CHAT = { other: null, ref: null };
 
 async function messagesInit() {
   NET.adminUid = (await db.ref('meta/adminUid').get()).val();
-  if (S.isAdmin) NET.dir = (await db.ref('directory').get()).val() || {};   // الأدمن وحده يقرأ كل الحسابات
+  if (S.isAdmin) {   // الأدمن وحده يقرأ كل الحسابات وعلاماتهم
+    NET.dir = (await db.ref('directory').get()).val() || {};
+    Object.entries(NET.dir).forEach(([u, d]) => { BADGES[u] = d.badge || ''; });
+  }
   NET.friends = (await db.ref('friends/' + S.uid).get()).val() || {};
+  await loadBadges(Object.keys(NET.friends));
 
-  db.ref('friends/' + S.uid).on('value', (s) => { NET.friends = s.val() || {}; renderContacts(); });
+  db.ref('friends/' + S.uid).on('value', async (s) => {
+    NET.friends = s.val() || {};
+    await loadBadges(Object.keys(NET.friends));
+    renderContacts();
+  });
   db.ref('inbox/' + S.uid).on('value', (s) => { NET.inbox = s.val() || {}; renderContacts(); });
 
   const chat = new URLSearchParams(location.search).get('chat');
@@ -911,6 +947,7 @@ function renderContacts() {
     const info = NET.inbox[c.uid] || {};
     return {
       uid: c.uid, name: c.name, pinned: c.pinned, unread: !!info.unread,
+      vb: badgeClass(c.pinned ? 'red' : BADGES[c.uid]),
       sub: (c.pid ? 'ID ' + c.pid + ' — ' : '') + (info.text || '').slice(0, 30),
       cls: c.uid && c.uid === CHAT.other ? 'on' : ''
     };
@@ -986,7 +1023,7 @@ async function saveSettings() {
     await db.ref('users/' + S.uid).update({
       user: S.user.user, name: S.user.name, phone: S.user.phone, post: S.user.post, addr: S.user.addr
     });
-    await db.ref('directory/' + S.uid).set({
+    await db.ref('directory/' + S.uid).update({
       name: S.isAdmin ? t('president') : S.user.name, user: S.user.user, pid: S.user.pid
     });
     if ($('#p').value) {
@@ -1004,16 +1041,18 @@ async function saveSettings() {
 /* ===== admin.html ===== */
 let ADMIN_REQ = {};     // 'uid/rid' -> الطلب
 let ADMIN_USERS = {};   // uid -> بيانات الحساب
+let ADMIN_BADGES = {};  // uid -> علامة الحساب
 
 function adminInit() { loadAdminData(); }
 
 async function loadAdminData() {
   try {
-    const [usersSnap, txSnap, reqSnap, logsSnap] = await Promise.all([
+    const [usersSnap, txSnap, reqSnap, logsSnap, dirSnap] = await Promise.all([
       db.ref('users').get(),
       db.ref('tx').get(),
       db.ref('requests').get(),
-      db.ref('logs').orderByChild('ts').limitToLast(300).get()
+      db.ref('logs').orderByChild('ts').limitToLast(300).get(),
+      db.ref('directory').get()
     ]);
 
     const users = usersSnap.val() || {};
@@ -1022,6 +1061,8 @@ async function loadAdminData() {
     const logs = Object.values(logsSnap.val() || {}).sort((a, b) => b.ts - a.ts);
 
     ADMIN_USERS = users;
+    ADMIN_BADGES = {};
+    Object.entries(dirSnap.val() || {}).forEach(([u, d]) => { ADMIN_BADGES[u] = d.badge || ''; });
     ADMIN_REQ = {};
     Object.entries(allReq).forEach(([uid, list]) => {
       Object.entries(list).forEach(([rid, r]) => { ADMIN_REQ[uid + '/' + rid] = { ...r, uid, rid }; });
@@ -1108,7 +1149,10 @@ function renderAdminUsers(users) {
     pay: x.pm ? x.pm.t + ' ' + x.pm.k : '',
     assets: Object.entries(x.h || {}).filter(([, q]) => q > 0).map(([s, q]) => `${s} ${q.toFixed(4)}`).join(', ') || '-',
     cash: fd(x.bal || 0), tot: fd(total({ bal: x.bal || 0, h: x.h || {} })),
-    canDelete: uid !== S.uid
+    canDelete: uid !== S.uid,
+    vb: badgeClass(uid === S.uid ? 'red' : ADMIN_BADGES[uid]),
+    canVerify: uid !== S.uid,
+    vlabel: t(ADMIN_BADGES[uid] === 'blue' ? 'btn_unverify' : 'btn_verify')
   }));
 
   renderRows('#adm-users', null, 'tpl-adm-user', items, {
@@ -1116,6 +1160,7 @@ function renderAdminUsers(users) {
     minus: (d, ev) => adminAdjust(d.uid, -1, ev),
     edit: (d) => adminEdit(d.uid),
     reset: (d) => adminReset(d.email),
+    verify: (d) => adminToggleVerify(d.uid),
     del: (d) => adminDelete(d.uid)
   });
 }
@@ -1173,6 +1218,20 @@ async function adminDelete(uid) {
   }
 }
 
+// توثيق حساب (علامة زرقاء) أو إلغاء توثيقه
+async function adminToggleVerify(uid) {
+  const wasOn = ADMIN_BADGES[uid] === 'blue';
+  try {
+    const ref = db.ref('directory/' + uid + '/badge');
+    await (wasOn ? ref.remove() : ref.set('blue'));
+    await logAction(t(wasOn ? 'log_unverify' : 'log_verify'), (ADMIN_USERS[uid] || {}).email || uid);
+    toast(wasOn ? 'ok_unverified' : 'ok_verified');
+    loadAdminData();
+  } catch (err) {
+    fail(err, 'f_exec');
+  }
+}
+
 /* ---- تعديل حساب ---- */
 function adminEdit(uid) {
   const x = ADMIN_USERS[uid];
@@ -1209,7 +1268,7 @@ async function adminSaveEdit() {
 
     const changes = { name: v('ed-n'), user: v('ed-u'), phone: v('ed-ph'), pid: newPid, wil: v('ed-w'), post: v('ed-pc'), addr: v('ed-a') };
     await db.ref('users/' + uid).update(changes);
-    await db.ref('directory/' + uid).set({ name: uid === S.uid ? t('president') : changes.name, user: changes.user, pid: newPid });
+    await db.ref('directory/' + uid).update({ name: uid === S.uid ? t('president') : changes.name, user: changes.user, pid: newPid });
     await logAction(t('log_edit_acc'), `${x.email} (ID ${newPid})`);
 
     if (uid === S.uid) Object.assign(S.user, changes);
@@ -1246,7 +1305,7 @@ async function adminCreateAccount() {
       bal: balance, created: Date.now(), createdBy: 'admin'
     };
     await db.ref('users/' + uid).set(profile);
-    await db.ref('directory/' + uid).set({ name: profile.name, user: profile.user, pid: profile.pid });
+    await db.ref('directory/' + uid).update({ name: profile.name, user: profile.user, pid: profile.pid });
 
     if (balance > 0) {
       await db.ref('tx/' + uid).push({ t: t('tx_admin_dep'), amt: '+' + f(balance), note: t('note_initial'), d: nowText(), ts: Date.now() });

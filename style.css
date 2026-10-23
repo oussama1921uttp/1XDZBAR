@@ -115,7 +115,8 @@ nav {
 
 nav .brand { font-size: 22px; padding: 2px 6px 14px; }
 nav .u { padding: 8px 10px 12px; margin-bottom: 8px; border-bottom: 1px solid var(--bd); }
-nav .u b { display: block; }
+nav .u b { display: inline; }
+nav .u .un { display: block; }
 nav .sp { flex: 1; }
 
 nav a {
@@ -357,3 +358,15 @@ button.big-star { font-size: 28px; vertical-align: middle; }
 .bot-av { background: var(--grad); font-size: 20px; }
 .bot-desc { flex: 1; margin: 10px 0; white-space: pre-wrap; }
 .bot-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* ========== علامة التوثيق ========== */
+.vb {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid #fff;
+  color: #fff; font-size: 10px; font-style: normal; font-weight: 700;
+  vertical-align: middle; margin-inline-start: 4px; flex: none;
+}
+.vb::before { content: '✓'; }
+.vb-blue { background: #1d9bf0; }
+.vb-red { background: #e11d48; }
+.vb:not(.vb-blue):not(.vb-red) { display: none; }

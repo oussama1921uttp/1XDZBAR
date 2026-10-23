@@ -15,7 +15,7 @@
   <div id="shell">
   <div id="nav"><nav>
     <div class="brand"><span class="logo"><span class="logo-x">1X</span><span class="logo-t">DZBAR</span></span></div>
-    <div class="u"><b data-bind="name"></b><span data-bind="total"></span><span>ID: <span data-bind="pid"></span></span></div>
+    <div class="u"><div class="un"><b data-bind="name"></b><i class="vb" data-mybadge></i></div><span data-bind="total"></span><span>ID: <span data-bind="pid"></span></span></div>
     <a href="index.html" data-nav="home">🏠 الرئيسية</a>
     <a href="wallet.html" data-nav="wallet">👛 محفظتي</a>
     <a href="transfer.html" data-nav="transfer">💸 تحويل</a>
@@ -69,7 +69,7 @@
   <template id="tpl-contact">
     <div class="chat-item" data-do="open" data-c="cls">
       <div>
-        <span data-show="pinned">📌</span> <b data-f="name"></b>
+        <span data-show="pinned">📌</span> <b data-f="name"></b><i class="vb" data-c="vb"></i>
         <span class="badge b-ok" data-show="pinned">EPINGLE</span>
         <span class="badge b-no" data-show="unread">جديد</span>
       </div>
@@ -82,6 +82,12 @@
 
   <!-- كل رسائل الموقع (تظهر في toast أو في النوافذ) — عدّل النص هنا -->
   <div id="msgs" hidden>
+    <span data-k="ok_verified">تم توثيق الحساب</span>
+    <span data-k="ok_unverified">تم إلغاء التوثيق</span>
+    <span data-k="log_verify">توثيق حساب</span>
+    <span data-k="log_unverify">إلغاء توثيق حساب</span>
+    <span data-k="btn_verify">توثيق</span>
+    <span data-k="btn_unverify">إلغاء التوثيق</span>
     <span data-k="ok_bot_bought">تم شراء البوت</span>
     <span data-k="ok_bot_added">تمت إضافة البوت</span>
     <span data-k="err_bot_owned">لديك هذا البوت بالفعل</span>
