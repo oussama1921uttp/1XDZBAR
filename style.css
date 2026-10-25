@@ -241,7 +241,7 @@ nav { border-inline-end: 0; border-inline-start: 1px solid var(--bd); }
 #topbar, #scrim { display: none; }
 #nav.dragging { transition: none !important; }
 
-/* الجوال والأجهزة اللوحية: القائمة درج يُسحب من حافة اليسار */
+/* الجوال والأجهزة اللوحية: القائمة درج يُسحب من حافة اليمين */
 @media (max-width: 900px) {
   #shell { flex-direction: column; }
 
@@ -252,8 +252,8 @@ nav { border-inline-end: 0; border-inline-start: 1px solid var(--bd); }
   #menu-btn { margin: 0; padding: 4px 12px; font-size: 20px; }
 
   #nav {
-    position: fixed; top: 0; bottom: 0; left: 0; order: 0; z-index: 50;
-    width: 270px; max-width: 84vw; transform: translateX(-105%); transition: transform .25s ease;
+    position: fixed; top: 0; bottom: 0; right: 0; order: 0; z-index: 50;
+    width: 270px; max-width: 84vw; transform: translateX(105%); transition: transform .25s ease;
   }
   body.menu-open #nav { transform: translateX(0); box-shadow: 0 0 40px rgba(0, 0, 0, .35); }
   nav { position: static; height: 100%; border: 0; }

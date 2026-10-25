@@ -146,7 +146,7 @@ const S = {
   badge: '',             // علامة حسابي: blue أو فارغ
   registering: false,
   permissionProblem: false,
-  listening: { config: false, balance: false, transfers: false, requests: false, favs: false }
+  listening: { config: false, balance: false, transfers: false, requests: false, favs: false, holdings: false }
 };
 
 function saveUser() {
@@ -189,6 +189,17 @@ async function changeBalance(uid, delta) {
   return ref.transaction((bal) => {
     const next = (bal === null ? known : bal) + delta;
     return next < 0 ? undefined : next;
+  });
+}
+
+// تعديل ملف حساب كاملاً بشكل ذرّي: fn تعدّل نسخة وتُرجعها، أو تُرجع undefined للإلغاء
+async function updateUser(uid, fn) {
+  const ref = db.ref('users/' + uid);
+  const known = (await ref.get()).val();
+  return ref.transaction((u) => {
+    const cur = u === null ? known : u;
+    if (!cur) return undefined;
+    return fn(JSON.parse(JSON.stringify(cur)));
   });
 }
 
@@ -293,6 +304,12 @@ async function loadUser(uid, email) {
       refreshStars();
       if (started && pageKey === 'favorites') renderCoinList();
     }, () => {});
+  }
+  if (!S.listening.holdings) {
+    S.listening.holdings = true;
+    ['h', 'cost'].forEach((k) => {
+      db.ref('users/' + uid + '/' + k).on('value', (snap) => { if (S.user) S.user[k] = snap.val() || {}; }, () => {});
+    });
   }
 }
 
@@ -409,7 +426,7 @@ function setupShell() {
   if (S.isAdmin && S.permissionProblem) showPermissionHelp();
 }
 
-/* ---------- القائمة الجانبية على اليسار: زر ☰ أو سحب بالإصبع على الجوال ---------- */
+/* ---------- القائمة الجانبية: زر ☰ أو سحب بالإصبع من اليمين على الجوال ---------- */
 const isDrawer = () => window.matchMedia('(max-width: 900px)').matches;
 
 function toggleMenu(force) {
@@ -427,7 +444,7 @@ function toggleMenu(force) {
     if (!isDrawer()) return;
     const x = e.touches[0].clientX, y = e.touches[0].clientY;
     const open = document.body.classList.contains('menu-open');
-    if (!open && x > 30) return;   // الفتح يبدأ من حافة اليسار، والإغلاق من أي مكان
+    if (!open && window.innerWidth - x > 30) return;   // الفتح يبدأ من حافة اليمين، والإغلاق من أي مكان
     start = { x, y };
     opening = !open;
     dragging = false;
@@ -443,10 +460,10 @@ function toggleMenu(force) {
       nav.classList.add('dragging');
       scrim.style.transition = 'none';
     }
-    // offset: ‎-width مغلقة، 0 مفتوحة بالكامل
-    const offset = Math.max(-width, Math.min(0, opening ? -width + dx : dx));
+    // offset: 0 مفتوحة بالكامل، width مغلقة (الدرج على اليمين)
+    const offset = Math.max(0, Math.min(width, opening ? width + dx : dx));
     nav.style.transform = `translateX(${offset}px)`;
-    scrim.style.opacity = String(1 + offset / width);
+    scrim.style.opacity = String(1 - offset / width);
   }, { passive: true });
 
   document.addEventListener('touchend', (e) => {
@@ -459,7 +476,7 @@ function toggleMenu(force) {
     scrim.style.opacity = '';
     start = null;
     dragging = false;
-    if (wasDragging) toggleMenu(opening ? dx > width / 3 : dx > -width / 3);
+    if (wasDragging) toggleMenu(opening ? dx < -width / 3 : dx < width / 3);
   }, { passive: true });
 })();
 
@@ -1547,7 +1564,64 @@ async function buyBot(id) {
 }
 
 /* ===== admin_bots.html: إدارة البوتات (للأدمن) ===== */
-async function adminBotsInit() { await loadAdminBots(); }
+async function adminBotsInit() {
+  await loadAdminBots();
+  await loadBuyers();
+}
+
+/* ---- مشترو البوتات: صف لكل عملية شراء بوت؛ إضافة رصيد أو نزعه ويُكتب في سجل المشتري اسم البوت الذي اشتراه ---- */
+let BUYERS = {};   // 'uid/botId' -> بيانات الحساب + اسم البوت
+
+async function loadBuyers() {
+  try {
+    const [bought, usersSnap] = await Promise.all([db.ref('userBots').get(), db.ref('users').get()]);
+    const users = usersSnap.val() || {};
+    BUYERS = {};
+    Object.entries(bought.val() || {}).forEach(([uid, recs]) => {
+      if (!users[uid]) return;
+      Object.values(recs).forEach((r) => { BUYERS[uid + '/' + r.botId] = { ...users[uid], uid, botName: r.name }; });
+    });
+    renderBuyers();
+  } catch (err) {
+    fail(err, 'f_load');
+  }
+}
+
+function renderBuyers() {
+  const items = Object.values(BUYERS).map((b) => ({
+    uid: b.uid, name: b.name, email: b.email, pid: b.pid || '-', bots: b.botName, botName: b.botName, cash: fd(b.bal || 0)
+  }));
+  renderRows('#buyers', '#buyers-empty', 'tpl-buyer', items, {
+    plus: (d, ev) => botMoney(d, 1, ev),
+    minus: (d, ev) => botMoney(d, -1, ev)
+  });
+}
+
+// sign: 1 إضافة رصيد، -1 نزع رصيد (لا يقبل رصيداً سالباً)
+async function botMoney(d, sign, ev) {
+  const input = ev.target.closest('tr').querySelector('input');
+  const amount = parseFloat(input.value);
+  if (!(amount > 0)) return toast('err_amount');
+
+  try {
+    const result = await changeBalance(d.uid, sign * amount);
+    if (!result.committed) return toast('err_no_funds_withdraw');
+
+    const label = t(sign > 0 ? 'tx_bot_add' : 'tx_bot_remove');
+    await Promise.all([
+      db.ref('tx/' + d.uid).push({ t: label, amt: (sign > 0 ? '+' : '-') + f(amount), note: d.botName, d: nowText(), ts: Date.now() }),
+      logAction(label, `${d.email} — ${d.botName} — ${fd(amount)}`)
+    ]);
+
+    if (d.uid === S.uid) S.user.bal = result.snapshot.val();
+    input.value = '';
+    toast('ok_done');
+    bindUser();
+    loadBuyers();
+  } catch (err) {
+    fail(err, 'f_exec');
+  }
+}
 
 async function loadAdminBots() {
   try {

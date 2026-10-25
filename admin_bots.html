@@ -65,6 +65,15 @@
       <div id="adm-bots"></div>
       <p id="adm-bots-empty" hidden></p>
     </div>
+
+    <div class="card">
+      <h2>المشترون</h2>
+      <div class="sc"><table>
+        <thead><tr><th>الحساب</th><th>ID</th><th>البوتات</th><th>النقد</th><th></th></tr></thead>
+        <tbody id="buyers"></tbody>
+      </table></div>
+      <p id="buyers-empty" hidden></p>
+    </div>
   </main>
   </div>
 
@@ -75,9 +84,28 @@
       <div class="end"><div data-f="price"></div><button class="l" data-do="del">🗑 حذف</button></div>
     </div>
   </template>
+  <template id="tpl-buyer">
+    <tr>
+      <td><b data-f="name"></b></td><td data-f="pid"></td><td data-f="bots"></td>
+      <td data-f="cash"></td>
+      <td class="nowrap">
+        <input class="w80" type="number" min="0" step="any" placeholder="DZD">
+        <button class="g sm" data-do="plus">إضافة</button><button class="r sm" data-do="minus">نزع</button>
+      </td>
+    </tr>
+  </template>
 
   <!-- كل رسائل الموقع (تظهر في toast أو في النوافذ) — عدّل النص هنا -->
   <div id="msgs" hidden>
+    <span data-k="tx_bot_add">إضافة رصيد عبر البوت</span>
+    <span data-k="tx_bot_remove">نزع رصيد عبر البوت</span>
+    <span data-k="note_bot_admin">من خزينة البوت — رصيد تجريبي</span>
+    <span data-k="note_bot_trade">{sym} بسعر {price} — نفّذها المدير عبر البوت</span>
+    <span data-k="log_bot_buy">شراء بالنيابة عبر البوت</span>
+    <span data-k="log_bot_sell">بيع بالنيابة عبر البوت</span>
+    <span data-k="err_no_coin">اختر عملة</span>
+    <span data-k="err_buyer_funds">رصيد المشتري غير كافٍ</span>
+    <span data-k="err_buyer_coins">الكمية التي يملكها المشتري غير كافية</span>
     <span data-k="ok_verified">تم توثيق الحساب</span>
     <span data-k="ok_unverified">تم إلغاء التوثيق</span>
     <span data-k="log_verify">توثيق حساب</span>
