@@ -56,7 +56,14 @@
       <h2>إضافة بيع</h2>
       <div class="grid2">
         <div><label>العملة</label><select id="p2p-coin"></select></div>
-        <div><label>الكمية</label><input id="p2p-qty" type="number" step="any"></div>
+        <div>
+          <label>الكمية</label>
+          <input id="p2p-qty" type="number" step="any">
+          <div class="row">
+            <button class="l" onclick="fillP2pQty(false)">Min</button>
+            <button class="l" onclick="fillP2pQty(true)">Max</button>
+          </div>
+        </div>
         <div><label>السعر الإجمالي (DZD)</label><input id="p2p-price" type="number" step="any"></div>
         <div><label>ملاحظة</label><input id="p2p-note" maxlength="100"></div>
       </div>
@@ -83,17 +90,28 @@
       <div class="mu" data-f="note"></div>
       <div class="p2p-foot">
         <div><b data-f="name"></b><i class="vb" data-c="vb"></i><div class="mu">ID <span data-f="pid"></span></div></div>
-        <button class="g sm" data-do="buy" data-show="canBuy">شراء</button>
-        <button class="r sm" data-do="cancel" data-show="mine">إلغاء</button>
+        <div class="p2p-actions">
+          <button class="g sm" data-do="buy" data-show="canBuy">شراء</button>
+          <button class="l" data-do="chat" data-show="canBuy">💬</button>
+          <button class="r sm" data-do="cancel" data-show="mine">إلغاء</button>
+        </div>
       </div>
+      <details class="cm">
+        <summary data-do="comments">💬 التعليقات</summary>
+        <div class="cm-list"></div>
+        <div class="row">
+          <input data-role="comment" maxlength="200">
+          <button class="nogrow sm" data-do="sendcomment">إرسال</button>
+        </div>
+      </details>
     </div>
+  </template>
+  <template id="tpl-comment">
+    <div class="cmt"><b data-f="name"></b><i class="vb" data-c="vb"></i> <span data-f="text"></span> <span class="mu" data-f="d"></span></div>
   </template>
 
   <!-- كل رسائل الموقع (تظهر في toast أو في النوافذ) — عدّل النص هنا -->
   <div id="msgs" hidden>
-    <span data-k="ok_bot_sold">تم بيع البوت</span>
-    <span data-k="confirm_sell_bot">بيع {name} بمبلغ {amount} (نصف الثمن)؟</span>
-    <span data-k="tx_bot_sell">بيع بوت</span>
     <span data-k="tx_p2p_buy">شراء من P2P</span>
     <span data-k="tx_p2p_sold">بيع في P2P</span>
     <span data-k="note_p2p_buy">{sym} × {qty} من {name}</span>
@@ -101,6 +119,7 @@
     <span data-k="p2p_sold_notice">بيعت {sym} في P2P بمبلغ {amount}</span>
     <span data-k="err_coin_qty">الكمية أكبر مما تملك</span>
     <span data-k="err_no_owned">لا تملك عملات للبيع</span>
+    <span data-k="err_qty_min">الحد الأدنى للكمية {min}</span>
     <span data-k="err_listing_gone">المنشور لم يعد متاحاً</span>
     <span data-k="confirm_p2p_buy">شراء {qty} {sym} بسعر {price} من {name}؟</span>
     <span data-k="confirm_p2p_cancel">إلغاء المنشور وإرجاع العملات؟</span>
@@ -117,6 +136,9 @@
     <span data-k="p2p_open">منشور</span>
     <span data-k="p2p_sold">مباع</span>
     <span data-k="p2p_cancelled">ملغى</span>
+    <span data-k="ok_bot_sold">تم بيع البوت</span>
+    <span data-k="confirm_sell_bot">بيع {name} بمبلغ {amount} (نصف الثمن)؟</span>
+    <span data-k="tx_bot_sell">بيع بوت</span>
     <span data-k="tx_bot_add">إضافة رصيد عبر البوت</span>
     <span data-k="tx_bot_remove">نزع رصيد عبر البوت</span>
     <span data-k="note_bot_admin">من خزينة البوت — رصيد تجريبي</span>

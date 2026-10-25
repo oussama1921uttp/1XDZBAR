@@ -153,6 +153,16 @@
       "$id": {
         ".write": "(!data.exists() && newData.child('uid').val() === auth.uid && newData.child('status').val() === 'open' && newData.child('price').isNumber() && newData.child('price').val() > 0 && newData.child('qty').isNumber() && newData.child('qty').val() > 0 && root.child('ids').child(newData.child('pid').val()).val() === auth.uid) || (data.exists() && data.child('status').val() === 'open' && newData.child('status').val() === 'sold' && auth.uid !== data.child('uid').val() && newData.child('price').val() === data.child('price').val() && newData.child('qty').val() === data.child('qty').val()) || (data.exists() && data.child('status').val() === 'open' && newData.child('status').val() === 'cancelled' && auth.uid === data.child('uid').val())"
       }
+    },
+    "p2pComments": {
+      ".write": "root.child('admins').child(auth.uid).val() === true || auth.token.email.toLowerCase() === 'gerchouche999@gmail.com'",
+      "$id": {
+        ".read": "auth != null",
+        "$cid": {
+          ".write": "auth != null && !data.exists() && newData.child('uid').val() === auth.uid",
+          ".validate": "newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 200"
+        }
+      }
     }
   }
 }

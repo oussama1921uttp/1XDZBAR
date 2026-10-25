@@ -389,3 +389,9 @@ button.big-star { font-size: 28px; vertical-align: middle; }
 .p2p .avatar { font-size: 11px; }
 .p2p-price { font-size: 20px; font-weight: 700; }
 .p2p-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
+
+.p2p-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.cm { margin-top: 6px; border-top: 1px solid var(--bd); padding-top: 6px; }
+.cm summary { cursor: pointer; color: var(--pr); font-size: 14px; }
+.cm-list { max-height: 160px; overflow-y: auto; margin: 6px 0; }
+.cmt { padding: 4px 0; font-size: 13px; border-bottom: 1px dashed var(--bd); }

@@ -218,7 +218,7 @@ async function receiveTransfer(tid, tr) {
   if (!claim.committed) return;
 
   if (tr.status === 'pending') await changeBalance(S.uid, tr.amount);
-  if (tr.kind === 'p2p') {
+  if (tr.kind === 'p2p') {   // اشترى أحدهم عملتك: المبلغ أُضيف إلى رصيدك، وهنا نسجّله
     await addTx(t('tx_p2p_sold'), '+' + f(tr.amount), t('note_p2p_sold', { sym: tr.sym, qty: Number(tr.qty).toFixed(6), name: tr.fromName }));
     bindUser();
     return toast('p2p_sold_notice', { sym: tr.sym, amount: fd(tr.amount) });
@@ -975,7 +975,7 @@ function renderFriends() {
 }
 
 /* ===== messages.html ===== */
-const CHAT = { other: null, ref: null };
+const CHAT = { other: null, ref: null, name: '', pid: '' };
 
 async function messagesInit() {
   NET.adminUid = (await db.ref('meta/adminUid').get()).val();
@@ -991,13 +991,18 @@ async function messagesInit() {
     await loadBadges(Object.keys(NET.friends));
     renderContacts();
   });
-  db.ref('inbox/' + S.uid).on('value', (s) => { NET.inbox = s.val() || {}; renderContacts(); });
+  db.ref('inbox/' + S.uid).on('value', async (s) => {
+    NET.inbox = s.val() || {};
+    await loadBadges(Object.keys(NET.inbox));
+    renderContacts();
+  });
 
-  const chat = new URLSearchParams(location.search).get('chat');
-  if (chat) openChat(chat);
+  // فتح محادثة مباشرة من رابط مثل messages.html?chat=UID&name=..&pid=..
+  const params = new URLSearchParams(location.search);
+  if (params.get('chat')) openChat(params.get('chat'), params.get('name') || '', params.get('pid') || '');
 }
 
-// الأدمن: كل الحسابات | غيره: الرئيس مثبّت أولاً ثم الأصدقاء
+// الأدمن: كل الحسابات | غيره: الرئيس مثبّت أولاً ثم الأصدقاء ومن راسلتَه أو راسلك
 function contactList() {
   const q = $('#q').value.trim().toLowerCase();
   let items;
@@ -1007,7 +1012,12 @@ function contactList() {
       .filter(([uid]) => uid !== S.uid)
       .map(([uid, d]) => ({ uid, name: d.name || d.user || '—', pid: d.pid, pinned: false }));
   } else {
-    items = Object.entries(NET.friends).map(([uid, d]) => ({ uid, name: d.name, pid: d.pid, pinned: false }));
+    const byUid = {};
+    Object.entries(NET.friends).forEach(([uid, d]) => { byUid[uid] = { uid, name: d.name, pid: d.pid, pinned: false }; });
+    Object.entries(NET.inbox).forEach(([uid, d]) => {
+      if (uid !== NET.adminUid && !byUid[uid]) byUid[uid] = { uid, name: d.name || '—', pid: d.pid, pinned: false };
+    });
+    items = Object.values(byUid);
     items.push({ uid: NET.adminUid, name: t('president'), pid: ADMIN_ID, pinned: true });
   }
 
@@ -1035,16 +1045,18 @@ function chatId(a, b) { return [a, b].sort().join('_'); }
 
 function nameOf(uid) {
   if (uid === NET.adminUid) return t('president');
-  const d = NET.friends[uid] || NET.dir[uid] || {};
+  const d = NET.friends[uid] || NET.dir[uid] || NET.inbox[uid] || {};
   return d.name || d.user || '—';
 }
 
-function openChat(uid) {
+function openChat(uid, name, pid) {
   if (!uid) return;
   if (CHAT.ref) CHAT.ref.off();   // نوقف متابعة المحادثة السابقة
 
   CHAT.other = uid;
-  $('#ct').textContent = (uid === NET.adminUid ? '📌 ' : '') + nameOf(uid);
+  CHAT.name = name || '';
+  CHAT.pid = pid || '';
+  $('#ct').textContent = (uid === NET.adminUid ? '📌 ' : '') + (name || nameOf(uid));
   $('#cm').innerHTML = '';
   $('#cf').hidden = false;
 
@@ -1059,19 +1071,22 @@ function openChat(uid) {
   renderContacts();
 }
 
+// إرسال رسالة خاصة (تُستعمل أيضاً لرسالة طلب الشراء التلقائية في P2P)
+async function deliverMessage(other, text, otherName, otherPid) {
+  const now = Date.now();
+  await db.ref('chats/' + chatId(S.uid, other)).push({ from: S.uid, to: other, text, ts: now, d: nowText() });
+  await Promise.all([
+    db.ref(`inbox/${S.uid}/${other}`).set({ text, ts: now, unread: false, name: otherName || '', pid: otherPid || '' }),
+    db.ref(`inbox/${other}/${S.uid}`).set({ text, ts: now, unread: true, name: S.isAdmin ? t('president') : S.user.name, pid: S.user.pid || '' })
+  ]);
+}
+
 async function sendMessage() {
   const text = $('#mt').value.trim();
   if (!text || !CHAT.other) return;
-
-  const other = CHAT.other, now = Date.now();
   $('#mt').value = '';
-
   try {
-    await db.ref('chats/' + chatId(S.uid, other)).push({ from: S.uid, to: other, text, ts: now, d: nowText() });
-    await Promise.all([
-      db.ref(`inbox/${S.uid}/${other}`).set({ text, ts: now, unread: false }),
-      db.ref(`inbox/${other}/${S.uid}`).set({ text, ts: now, unread: true })
-    ]);
+    await deliverMessage(CHAT.other, text, CHAT.name || nameOf(CHAT.other), CHAT.pid || (NET.friends[CHAT.other] || {}).pid || '');
   } catch (err) {
     toast('f_message');
   }
@@ -1417,7 +1432,7 @@ async function adminPurge() {
   try {
     const [usersSnap, idsSnap] = await Promise.all([db.ref('users').get(), db.ref('ids').get()]);
     const nodes = ['users', 'tx', 'requests', 'directory', 'inbox', 'friends', 'friendReq', 'transfers', 'userBots', 'favorites'];
-    const updates = { chats: null, p2p: null };
+    const updates = { chats: null, p2p: null, p2pComments: null };
 
     Object.keys(usersSnap.val() || {}).forEach((uid) => {
       if (uid === S.uid) return;
@@ -1694,13 +1709,28 @@ async function deleteBot(id) {
 }
 
 
-/* ===== p2p.html: سوق بين المستخدمين ===== */
+/* ===== p2p.html: سوق بين المستخدمين =====
+   تبيع عملة تملكها بسعر تحدده (DZD)، وتُحجز كميتها إلى أن يشتريها أحد أو تلغي المنشور. */
 let P2P = {};   // id -> المنشور
 
+// عملات تملكها فقط
 function fillP2pCoins() {
   $('#p2p-coin').innerHTML = Object.entries(S.user.h)
     .filter(([s, q]) => q > 0 && coin(s))
     .map(([s, q]) => `<option value="${s}">${s} — ${q.toFixed(4)}</option>`).join('');
+}
+
+// الحد الأدنى للكمية: ما قيمته الحالية MIN_AMOUNT (أو كل ما تملكه إن كان أقل)
+function p2pMinQty(sym) {
+  const c = coin(sym), owned = S.user.h[sym] || 0;
+  return c ? Math.min(owned, Math.ceil((MIN_AMOUNT / c.p) * 1e6) / 1e6) : 0;
+}
+
+// Min / Max للكمية
+function fillP2pQty(useMax) {
+  const sym = $('#p2p-coin').value;
+  const owned = Math.floor((S.user.h[sym] || 0) * 1e6) / 1e6;
+  $('#p2p-qty').value = useMax ? owned : p2pMinQty(sym);
 }
 
 function p2pInit() {
@@ -1720,23 +1750,32 @@ function renderP2p() {
       String((coin(l.sym) || {}).n || '').toLowerCase().includes(q))
     .sort(([, a], [, b]) => b.ts - a.ts)
     .map(([id, l]) => ({
-      id, ab: l.sym.slice(0, 3), sym: l.sym, cname: (coin(l.sym) || {}).n || l.sym,
+      id, uid: l.uid, ab: l.sym.slice(0, 3), sym: l.sym, cname: (coin(l.sym) || {}).n || l.sym,
       qty: Number(l.qty).toFixed(6), price: fd(l.price), name: l.name, pid: l.pid, note: l.note || '',
       vb: badgeClass(BADGES[l.uid]), mine: l.uid === S.uid, canBuy: l.uid !== S.uid
     }));
-  renderRows('#p2p-list', '#p2p-empty', 'tpl-p2p', items, { buy: (d) => buyP2p(d.id), cancel: (d) => cancelP2p(d.id) });
+  renderRows('#p2p-list', '#p2p-empty', 'tpl-p2p', items, {
+    buy: (d) => buyP2p(d.id),
+    cancel: (d) => cancelP2p(d.id),
+    chat: (d) => { location.href = `messages.html?chat=${d.uid}&name=${encodeURIComponent(d.name)}&pid=${d.pid}`; },
+    comments: (d, ev) => loadComments(d.id, ev.target.closest('.p2p')),
+    sendcomment: (d, ev) => sendComment(d.id, ev.target.closest('.p2p'))
+  });
 }
 
 // نشر عرض بيع: تُحجز العملات من رصيدك إلى أن يشتريها أحد أو تلغي العرض
 async function postP2p() {
   const u = S.user;
   const sym = $('#p2p-coin').value;
-  const qty = parseFloat($('#p2p-qty').value), price = parseFloat($('#p2p-price').value);
+  let qty = parseFloat($('#p2p-qty').value);
+  const price = parseFloat($('#p2p-price').value);
   const owned = u.h[sym] || 0;
 
   if (!sym) return toast('err_no_owned');
   if (!(qty > 0)) return toast('err_amount');
-  if (qty > owned + 1e-9) return toast('err_coin_qty');
+  if (qty > owned + 1e-6) return toast('err_coin_qty');
+  if (qty >= owned - 1e-6) qty = owned;   // بيع كل ما تملك
+  if (qty < p2pMinQty(sym) - 1e-9) return toast('err_qty_min', { min: p2pMinQty(sym) });
   if (!(price >= MIN_AMOUNT)) return toast('err_min', { min: fd(MIN_AMOUNT) });
 
   const takeCost = owned > 0 ? (u.cost[sym] || 0) * Math.min(1, qty / owned) : 0;
@@ -1827,6 +1866,33 @@ async function cancelP2p(id) {
   }
 }
 
+/* ---- التعليقات: خانة تعليقات لكل منشور ---- */
+function loadComments(id, card) {
+  if (card.dataset.loaded) return;
+  card.dataset.loaded = '1';
+  const list = $('.cm-list', card);
+  db.ref('p2pComments/' + id).on('child_added', async (snap) => {
+    const c = snap.val();
+    await loadBadges([c.uid]);
+    list.append(clone('tpl-comment', { name: c.name, text: c.text, d: c.d, vb: badgeClass(BADGES[c.uid]) }));
+  });
+}
+
+async function sendComment(id, card) {
+  const input = $('[data-role="comment"]', card);
+  const text = input.value.trim();
+  if (!text) return;
+  try {
+    await db.ref('p2pComments/' + id).push({
+      uid: S.uid, name: S.isAdmin ? t('president') : S.user.name, pid: S.user.pid || '',
+      text: text.slice(0, 200), ts: Date.now(), d: nowText()
+    });
+    input.value = '';
+  } catch (err) {
+    fail(err, 'f_send');
+  }
+}
+
 /* ===== admin_p2p.html: الأدمن ينزع منشوراً أو يعدّله ===== */
 const P2P_CLASS = { open: 'b-ok', sold: 'b-pending', cancelled: 'b-no' };
 
@@ -1851,6 +1917,7 @@ function renderAdminP2p() {
   });
 }
 
+// تغيير منشور: السعر والملاحظة
 async function adminP2pSave(d, ev) {
   const row = ev.target.closest('tr');
   const price = parseFloat($('[data-role="price"]', row).value);
@@ -1866,27 +1933,22 @@ async function adminP2pSave(d, ev) {
   }
 }
 
-// إعادة العملات المحجوزة إلى صاحب المنشور وإغلاق المنشور
-async function releaseListing(id, l) {
-  const claim = await claimStatus(db.ref('p2p/' + id + '/status'), 'open', 'cancelled');
-  if (!claim.committed) return false;
-  await updateUser(l.uid, (u) => {
-    u.h = u.h || {};
-    u.cost = u.cost || {};
-    u.h[l.sym] = (u.h[l.sym] || 0) + l.qty;
-    u.cost[l.sym] = (u.cost[l.sym] || 0) + (l.cost || 0);
-    return u;
-  });
-  return true;
-}
-
+// نزع منشور: تعود العملات المحجوزة إلى صاحبه
 async function adminP2pRemove(d) {
   const l = P2P[d.id];
   if (!l || l.status !== 'open') return;
   if (!confirm(t('confirm_p2p_remove'))) return;
 
   try {
-    if (!(await releaseListing(d.id, l))) return toast('err_listing_gone');
+    const claim = await claimStatus(db.ref('p2p/' + d.id + '/status'), 'open', 'cancelled');
+    if (!claim.committed) return toast('err_listing_gone');
+    await updateUser(l.uid, (u) => {
+      u.h = u.h || {};
+      u.cost = u.cost || {};
+      u.h[l.sym] = (u.h[l.sym] || 0) + l.qty;
+      u.cost[l.sym] = (u.cost[l.sym] || 0) + (l.cost || 0);
+      return u;
+    });
     await logAction(t('log_p2p_remove'), `${l.sym} — ${l.name}`);
     toast('ok_p2p_removed');
   } catch (err) {
@@ -1894,7 +1956,7 @@ async function adminP2pRemove(d) {
   }
 }
 
-// عند حذف حساب: نُرجع/نغلق منشوراته المفتوحة
+// عند حذف حساب: نحذف منشوراته
 async function removeUserListings(uid) {
   const all = (await db.ref('p2p').get()).val() || {};
   await Promise.all(Object.entries(all).filter(([, l]) => l.uid === uid).map(([id]) => db.ref('p2p/' + id).remove()));
