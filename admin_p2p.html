@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>أدمن P2P — 1XDZBAR</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234f46e5'/%3E%3Ctext x='32' y='42' font-size='28' font-weight='700' text-anchor='middle' fill='white' font-family='Arial'%3E1X%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+</head>
+<body class="loading" data-page="admin_p2p" data-access="admin">
+
+  <header id="topbar">
+    <button id="menu-btn" onclick="toggleMenu()">☰</button>
+    <span class="logo"><span class="logo-x">1X</span><span class="logo-t">DZBAR</span></span>
+  </header>
+  <div id="scrim" onclick="toggleMenu(false)"></div>
+
+  <div id="shell">
+  <div id="nav"><nav>
+    <div class="brand"><span class="logo"><span class="logo-x">1X</span><span class="logo-t">DZBAR</span></span></div>
+    <div class="u"><div class="un"><b data-bind="name"></b><i class="vb" data-mybadge></i></div><span data-bind="total"></span><span>ID: <span data-bind="pid"></span></span></div>
+    <a href="index.html" data-nav="home">🏠 الرئيسية</a>
+    <a href="wallet.html" data-nav="wallet">👛 محفظتي</a>
+    <a href="transfer.html" data-nav="transfer">💸 تحويل</a>
+    <a href="favorites.html" data-nav="favorites">⭐ مفضلتي</a>
+    <a href="bots.html" data-nav="bots">🤖 بوت</a>
+    <a href="p2p.html" data-nav="p2p">🛒 P2P</a>
+    <a href="history.html" data-nav="history">🧾 السجل</a>
+    <a href="add_money.html" data-nav="add_money">➕ إيداع</a>
+    <a href="directing_money.html" data-nav="directing_money">➖ سحب</a>
+    <a href="friends.html" data-nav="friends">👥 طلبات الصداقة <span class="badge b-no" data-bind="reqcount" hidden></span></a>
+    <a href="messages.html" data-nav="messages">💬 الرسائل</a>
+    <a href="setting.html" data-nav="setting">⚙️ الإعدادات</a>
+    <a href="admin.html" data-nav="admin" data-admin hidden>🛡️ الأدمن</a>
+    <a href="admin_trade.html" data-nav="admin_trade" data-admin hidden>📊 إدارة العملات</a>
+    <a href="admin_bots.html" data-nav="admin_bots" data-admin hidden>🤖 أدمن بوت</a>
+    <a href="admin_p2p.html" data-nav="admin_p2p" data-admin hidden>🛒 أدمن P2P</a>
+    <div class="sp"></div>
+    <a href="login.html" onclick="logout(); return false;">🚪 خروج</a>
+  </nav></div>
+  <main>
+    <div class="card" id="load-error" hidden><h3 class="dn">تعذر تحميل بياناتك</h3><p data-bind="loaderr"></p></div>
+    <div class="card danger" id="perm-help" hidden>
+      <h3 class="dn">قاعدة البيانات رفضت الصلاحية</h3>
+      <p><b data-bind="permemail"></b> — UID: <b class="sel" data-bind="permuid"></b></p>
+      <ol>
+        <li>انسخ محتوى database.rules.json إلى Realtime Database ثم Rules ثم Publish.</li>
+        <li>سجّل الدخول ببريد الأدمن.</li>
+        <li>أو أضف في Database العقدة admins وتحتها UID أعلاه بقيمة true.</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h2>P2P</h2>
+      <div class="sc"><table>
+        <thead><tr><th>التاريخ</th><th>الحساب</th><th>العملة</th><th>الكمية</th><th>السعر (DZD)</th><th>ملاحظة</th><th>الحالة</th><th></th></tr></thead>
+        <tbody id="adm-p2p"></tbody>
+      </table></div>
+      <p id="adm-p2p-empty" hidden></p>
+    </div>
+  </main>
+  </div>
+
+  <div id="toast"></div>
+  <template id="tpl-adm-p2p">
+    <tr>
+      <td data-f="d"></td>
+      <td><b data-f="name"></b><i class="vb" data-c="vb"></i><div class="mu">ID <span data-f="pid"></span></div></td>
+      <td data-f="sym"></td><td data-f="qty"></td>
+      <td><input class="w80" type="number" step="any" data-role="price" data-value="priceRaw"></td>
+      <td><input data-role="note" data-value="note" maxlength="100"></td>
+      <td><span class="badge" data-f="status" data-c="cls"></span></td>
+      <td class="nowrap"><button class="g sm" data-do="save" data-show="isOpen">حفظ</button><button class="r sm" data-do="remove" data-show="isOpen">نزع</button></td>
+    </tr>
+  </template>
+
+  <!-- كل رسائل الموقع (تظهر في toast أو في النوافذ) — عدّل النص هنا -->
+  <div id="msgs" hidden>
+    <span data-k="ok_bot_sold">تم بيع البوت</span>
+    <span data-k="confirm_sell_bot">بيع {name} بمبلغ {amount} (نصف الثمن)؟</span>
+    <span data-k="tx_bot_sell">بيع بوت</span>
+    <span data-k="tx_p2p_buy">شراء من P2P</span>
+    <span data-k="tx_p2p_sold">بيع في P2P</span>
+    <span data-k="note_p2p_buy">{sym} × {qty} من {name}</span>
+    <span data-k="note_p2p_sold">{sym} × {qty} إلى {name}</span>
+    <span data-k="p2p_sold_notice">بيعت {sym} في P2P بمبلغ {amount}</span>
+    <span data-k="err_coin_qty">الكمية أكبر مما تملك</span>
+    <span data-k="err_no_owned">لا تملك عملات للبيع</span>
+    <span data-k="err_listing_gone">المنشور لم يعد متاحاً</span>
+    <span data-k="confirm_p2p_buy">شراء {qty} {sym} بسعر {price} من {name}؟</span>
+    <span data-k="confirm_p2p_cancel">إلغاء المنشور وإرجاع العملات؟</span>
+    <span data-k="confirm_p2p_remove">نزع هذا المنشور وإرجاع العملات لصاحبه؟</span>
+    <span data-k="ok_p2p_posted">تم نشر العرض</span>
+    <span data-k="ok_p2p_bought">تمت عملية الشراء</span>
+    <span data-k="ok_p2p_cancelled">تم إلغاء المنشور</span>
+    <span data-k="ok_p2p_removed">تم نزع المنشور</span>
+    <span data-k="ok_p2p_edited">تم تعديل المنشور</span>
+    <span data-k="log_p2p_post">نشر في P2P</span>
+    <span data-k="log_p2p_cancel">إلغاء منشور P2P</span>
+    <span data-k="log_p2p_edit">تعديل منشور P2P</span>
+    <span data-k="log_p2p_remove">نزع منشور P2P</span>
+    <span data-k="p2p_open">منشور</span>
+    <span data-k="p2p_sold">مباع</span>
+    <span data-k="p2p_cancelled">ملغى</span>
+    <span data-k="tx_bot_add">إضافة رصيد عبر البوت</span>
+    <span data-k="tx_bot_remove">نزع رصيد عبر البوت</span>
+    <span data-k="note_bot_admin">من خزينة البوت — رصيد تجريبي</span>
+    <span data-k="note_bot_trade">{sym} بسعر {price} — نفّذها المدير عبر البوت</span>
+    <span data-k="log_bot_buy">شراء بالنيابة عبر البوت</span>
+    <span data-k="log_bot_sell">بيع بالنيابة عبر البوت</span>
+    <span data-k="err_no_coin">اختر عملة</span>
+    <span data-k="err_buyer_funds">رصيد المشتري غير كافٍ</span>
+    <span data-k="err_buyer_coins">الكمية التي يملكها المشتري غير كافية</span>
+    <span data-k="ok_verified">تم توثيق الحساب</span>
+    <span data-k="ok_unverified">تم إلغاء التوثيق</span>
+    <span data-k="log_verify">توثيق حساب</span>
+    <span data-k="log_unverify">إلغاء توثيق حساب</span>
+    <span data-k="btn_verify">توثيق</span>
+    <span data-k="btn_unverify">إلغاء التوثيق</span>
+    <span data-k="ok_bot_bought">تم شراء البوت</span>
+    <span data-k="ok_bot_added">تمت إضافة البوت</span>
+    <span data-k="err_bot_owned">لديك هذا البوت بالفعل</span>
+    <span data-k="err_bot">أدخل اسماً وسعراً صحيحين</span>
+    <span data-k="confirm_buy_bot">شراء {name} بسعر {price}؟</span>
+    <span data-k="confirm_delete_bot">حذف هذا البوت؟</span>
+    <span data-k="log_bot_add">إضافة بوت</span>
+    <span data-k="log_bot_del">حذف بوت</span>
+    <span data-k="tx_bot">شراء بوت</span>
+    <span data-k="note_bot">{name}</span>
+    <span data-k="err_range">الحد الأدنى أكبر من -100 والأقصى أكبر من الأدنى</span>
+    <span data-k="lbl_cash">النقد</span>
+    <span data-k="admin_name">المدير</span>
+    <span data-k="president">الرئيس</span>
+    <span data-k="type_deposit">إيداع</span>
+    <span data-k="type_withdraw">سحب</span>
+    <span data-k="st_pending">قيد المراجعة</span>
+    <span data-k="st_approved">تمت الموافقة</span>
+    <span data-k="st_rejected">مرفوض</span>
+    <span data-k="tx_buy">شراء</span>
+    <span data-k="tx_sell">بيع</span>
+    <span data-k="tx_sent">تحويل مرسل</span>
+    <span data-k="tx_received">تحويل مستلم</span>
+    <span data-k="tx_admin_dep">إيداع من الإدارة</span>
+    <span data-k="tx_admin_wd">سحب من الإدارة</span>
+    <span data-k="note_trade">{sym} بسعر {price}</span>
+    <span data-k="note_to">إلى {name} (ID {pid})</span>
+    <span data-k="note_from">من {name} (ID {pid})</span>
+    <span data-k="note_admin">بواسطة المدير</span>
+    <span data-k="note_initial">رصيد ابتدائي</span>
+    <span data-k="note_approved">{method} — بموافقة المدير</span>
+    <span data-k="note_insufficient">رصيد غير كافٍ</span>
+    <span data-k="mask_rip">RIP ****</span>
+    <span data-k="mask_card">****</span>
+    <span data-k="log_login">تسجيل دخول</span>
+    <span data-k="log_logout">تسجيل خروج</span>
+    <span data-k="log_register">إنشاء حساب</span>
+    <span data-k="log_req_dep">طلب إيداع</span>
+    <span data-k="log_req_wd">طلب سحب</span>
+    <span data-k="log_approve">موافقة على طلب</span>
+    <span data-k="log_reject">رفض طلب</span>
+    <span data-k="log_settings">تعديل الإعدادات</span>
+    <span data-k="log_reset_pw">إرسال رابط إعادة كلمة المرور</span>
+    <span data-k="log_delete_acc">حذف حساب</span>
+    <span data-k="log_edit_acc">تعديل حساب بواسطة المدير</span>
+    <span data-k="log_create_acc">إنشاء حساب بواسطة المدير</span>
+    <span data-k="log_purge">حذف كل الحسابات عدا الأدمن</span>
+    <span data-k="log_coins_edit">تعديل العملات</span>
+    <span data-k="log_coin_add">إضافة عملة</span>
+    <span data-k="log_coin_del">حذف عملة</span>
+    <span data-k="log_coins_del_all">حذف كل العملات</span>
+    <span data-k="ok_done">تمت العملية</span>
+    <span data-k="ok_saved">تم الحفظ</span>
+    <span data-k="ok_deleted">تم الحذف</span>
+    <span data-k="ok_created">تم إنشاء الحساب</span>
+    <span data-k="ok_edit">تم حفظ التعديلات</span>
+    <span data-k="ok_purged">تم حذف كل الحسابات عدا الأدمن</span>
+    <span data-k="ok_approved">تمت الموافقة</span>
+    <span data-k="ok_rejected">تم الرفض</span>
+    <span data-k="ok_copied">تم نسخ ID المدير</span>
+    <span data-k="ok_friend_sent">تم إرسال طلب الصداقة</span>
+    <span data-k="ok_friends">أصبحتما صديقين</span>
+    <span data-k="ok_req_rejected">تم رفض الطلب</span>
+    <span data-k="ok_reset_sent">أُرسل رابط إعادة كلمة المرور إلى {email}</span>
+    <span data-k="ok_cancelled">تم الإلغاء</span>
+    <span data-k="flash_request">تم إرسال طلبك، بانتظار موافقة الإدارة</span>
+    <span data-k="flash_transfer">تم إرسال التحويل</span>
+    <span data-k="trade_bought">تم شراء {qty} {sym}</span>
+    <span data-k="trade_sold">تم بيع {qty} {sym}</span>
+    <span data-k="transfer_received">وصلك تحويل {amount} من {name}</span>
+    <span data-k="bad_login">بيانات الدخول غير صحيحة</span>
+    <span data-k="err_perm">لا توجد صلاحية — راجع التعليمات أعلى الصفحة</span>
+    <span data-k="err_amount">أدخل مبلغاً صحيحاً</span>
+    <span data-k="err_min">الحد الأدنى {min}</span>
+    <span data-k="err_max">تجاوزت الحد الأقصى {max}</span>
+    <span data-k="err_funds">رصيدك غير كافٍ</span>
+    <span data-k="err_pending_withdraw">الرصيد المتاح بعد الطلبات المعلّقة غير كافٍ</span>
+    <span data-k="err_num">أدخل Numéro</span>
+    <span data-k="err_processed">تمت معالجة هذا الطلب مسبقاً</span>
+    <span data-k="err_user_funds">رصيد الحساب غير كافٍ، تم رفض الطلب</span>
+    <span data-k="err_no_funds_withdraw">رصيد الحساب غير كافٍ للسحب</span>
+    <span data-k="err_no_email">لا يوجد بريد لهذا الحساب</span>
+    <span data-k="err_name">أدخل الاسم واللقب</span>
+    <span data-k="err_card">رقم البطاقة 16 رقماً</span>
+    <span data-k="err_expiry">تاريخ الانتهاء بصيغة MM/YY</span>
+    <span data-k="err_cvv">CVV 3 أرقام</span>
+    <span data-k="err_rip">RIP 20 رقماً</span>
+    <span data-k="err_user">اسم المستخدم 3 أحرف على الأقل</span>
+    <span data-k="err_email">بريد إلكتروني غير صالح</span>
+    <span data-k="err_phone">رقم هاتف غير صالح</span>
+    <span data-k="err_pass_len">كلمة المرور 6 أحرف على الأقل</span>
+    <span data-k="err_pass_match">كلمتا المرور غير متطابقتين</span>
+    <span data-k="err_names">أدخل الاسم واللقب</span>
+    <span data-k="err_birth">أدخل تاريخ الميلاد</span>
+    <span data-k="err_wil">اختر الولاية</span>
+    <span data-k="err_post">الرمز البريدي 5 أرقام</span>
+    <span data-k="err_addr">أدخل عنوان الإقامة</span>
+    <span data-k="err_fullname">أدخل الاسم واللقب</span>
+    <span data-k="err_balance">الرصيد لا يمكن أن يكون سالباً</span>
+    <span data-k="err_name_user">الاسم واسم المستخدم مطلوبان</span>
+    <span data-k="err_pw_relogin">سجّل الدخول من جديد ثم أعد المحاولة</span>
+    <span data-k="err_coin">رمز أو سعر غير صالح</span>
+    <span data-k="err_id">ID يجب أن يكون 8 أرقام</span>
+    <span data-k="err_self">هذا ID حسابك أنت</span>
+    <span data-k="err_no_account">لا يوجد حساب بهذا ID</span>
+    <span data-k="err_is_admin">الرئيس موجود دائماً في رسائلك</span>
+    <span data-k="err_already_friend">هذا الحساب صديقك بالفعل</span>
+    <span data-k="err_friend_send">تعذر الإرسال: ربما أرسلت طلباً من قبل</span>
+    <span data-k="err_id_taken">هذا ID مستعمل</span>
+    <span data-k="err_recipient">أدخل ID صحيحاً لحساب موجود</span>
+    <span data-k="email_taken">البريد مستخدم من قبل</span>
+    <span data-k="reg_fail">تعذر التسجيل</span>
+    <span data-k="f_load">تعذر التحميل</span>
+    <span data-k="f_exec">تعذر التنفيذ</span>
+    <span data-k="f_delete">تعذر الحذف</span>
+    <span data-k="f_create">تعذر الإنشاء</span>
+    <span data-k="f_save">تعذر الحفظ</span>
+    <span data-k="f_send">تعذر الإرسال</span>
+    <span data-k="f_transfer">تعذر التحويل</span>
+    <span data-k="f_accept">تعذر القبول</span>
+    <span data-k="f_reject">تعذر الرفض</span>
+    <span data-k="f_message">تعذر إرسال الرسالة</span>
+    <span data-k="rcp_searching">جارٍ البحث...</span>
+    <span data-k="rcp_invalid">ID غير صالح</span>
+    <span data-k="rcp_self">هذا ID حسابك أنت</span>
+    <span data-k="rcp_none">لا يوجد حساب بهذا ID</span>
+    <span data-k="rcp_found">المستلم: {name}</span>
+    <span data-k="rcp_user">مستخدم</span>
+    <span data-k="rcp_fail">تعذر البحث</span>
+    <span data-k="confirm_transfer">تحويل {amount} إلى {name} (ID {pid})؟</span>
+    <span data-k="confirm_delete_acc">حذف هذا الحساب ومعاملاته نهائياً؟</span>
+    <span data-k="confirm_purge">سيتم حذف كل الحسابات وإبقاء الأدمن فقط. متابعة؟</span>
+    <span data-k="prompt_delete">للتأكيد اكتب: DELETE</span>
+    <span data-k="confirm_delete_coin">حذف العملة {sym}؟</span>
+    <span data-k="confirm_delete_coins">حذف كل العملات؟</span>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

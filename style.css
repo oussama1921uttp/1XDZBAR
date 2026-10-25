@@ -381,3 +381,11 @@ button.big-star { font-size: 28px; vertical-align: middle; }
 .vb-blue { background: #1d9bf0; }
 .vb-red { background: #e11d48; }
 .vb:not(.vb-blue):not(.vb-red) { display: none; }
+
+/* ========== P2P ========== */
+.p2p-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.p2p { border: 1px solid var(--bd); border-radius: 16px; padding: 14px; background: var(--bg); display: flex; flex-direction: column; gap: 6px; }
+.p2p-head { display: flex; align-items: center; gap: 10px; }
+.p2p .avatar { font-size: 11px; }
+.p2p-price { font-size: 20px; font-weight: 700; }
+.p2p-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
