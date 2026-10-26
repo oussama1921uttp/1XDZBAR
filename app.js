@@ -1299,7 +1299,7 @@ async function adminDelete(uid) {
     const pid = ADMIN_USERS[uid] && ADMIN_USERS[uid].pid;
     await removeUserListings(uid);
     await Promise.all([
-      ...['users', 'tx', 'requests', 'directory', 'inbox', 'friends', 'friendReq', 'transfers', 'userBots', 'favorites'].map((n) => db.ref(n + '/' + uid).remove()),
+      ...['users', 'tx', 'requests', 'directory', 'inbox', 'friends', 'friendReq', 'transfers', 'userBots', 'favorites', 'orders'].map((n) => db.ref(n + '/' + uid).remove()),
       pid ? db.ref('ids/' + pid).remove() : null
     ]);
     await logAction(t('log_delete_acc'), uid);
@@ -1431,14 +1431,14 @@ async function adminPurge() {
 
   try {
     const [usersSnap, idsSnap] = await Promise.all([db.ref('users').get(), db.ref('ids').get()]);
-    const nodes = ['users', 'tx', 'requests', 'directory', 'inbox', 'friends', 'friendReq', 'transfers', 'userBots', 'favorites'];
+    const nodes = ['users', 'tx', 'requests', 'directory', 'inbox', 'friends', 'friendReq', 'transfers', 'userBots', 'favorites', 'orders'];
     const updates = { chats: null, p2p: null, p2pComments: null };
 
     Object.keys(usersSnap.val() || {}).forEach((uid) => {
       if (uid === S.uid) return;
       nodes.forEach((n) => { updates[n + '/' + uid] = null; });
     });
-    ['inbox', 'friends', 'friendReq', 'transfers', 'userBots', 'favorites'].forEach((n) => { updates[n + '/' + S.uid] = null; });
+    ['inbox', 'friends', 'friendReq', 'transfers', 'userBots', 'favorites', 'orders'].forEach((n) => { updates[n + '/' + S.uid] = null; });
     Object.entries(idsSnap.val() || {}).forEach(([pid, uid]) => { if (uid !== S.uid) updates['ids/' + pid] = null; });
 
     await db.ref().update(updates);
@@ -1963,6 +1963,104 @@ async function removeUserListings(uid) {
 }
 
 
+/* ===== other.html: معاملات أخرى — فليكسي =====
+   الطلب يُخصم مبلغه فوراً ويبقى معلّقاً إلى أن ينفّذه الأدمن، فإن رفضه عاد المبلغ إلى الرصيد. */
+const FLEXY_MIN = 200;                                           // أقل مبلغ (DZD)
+const FLEXY_PREFIX = { Ooredoo: '05', Mobilis: '06', Djezzy: '07' };   // بداية الرقم لكل مشغّل
+const ORDER_CLASS = { pending: 'b-pending', done: 'b-ok', rejected: 'b-no' };
+
+function otherInit() { loadMyOrders(); }
+
+async function loadMyOrders() {
+  const snap = await db.ref('orders/' + S.uid).get();
+  const list = Object.values(snap.val() || {}).sort((a, b) => b.ts - a.ts);
+  renderRows('#orders', '#orders-empty', 'tpl-order', list.map((o) => ({
+    d: o.d, op: o.op, number: o.number, amount: fd(o.amount), label: t('ord_' + o.status), cls: ORDER_CLASS[o.status] || ''
+  })), {});
+}
+
+async function doFlexy() {
+  const u = S.user;
+  const op = $('input[name="fx-op"]:checked').value;
+  const number = $('#fx-number').value.trim().replace(/\s/g, '');
+  const amount = parseFloat($('#fx-amount').value);
+
+  if (!/^0[567]\d{8}$/.test(number) || !number.startsWith(FLEXY_PREFIX[op])) return toast('err_fx_number');
+  if (!(amount >= FLEXY_MIN)) return toast('err_min', { min: fd(FLEXY_MIN) });
+  if (amount > u.bal) return toast('err_funds');
+  if (!confirm(t('confirm_flexy', { op, number, amount: fd(amount) }))) return;
+
+  const key = db.ref('orders/' + S.uid).push().key;
+  try {
+    // خصم المبلغ وتسجيل الطلب في عملية واحدة
+    await db.ref().update({
+      ['users/' + S.uid + '/bal']: firebase.database.ServerValue.increment(-amount),
+      [`orders/${S.uid}/${key}`]: { type: 'flexy', op, number, amount, status: 'pending', name: u.name, email: u.email, d: nowText(), ts: Date.now() }
+    });
+    u.bal -= amount;
+    await addTx(t('tx_flexy'), '-' + f(amount), t('note_flexy', { op, number }));
+    ['fx-number', 'fx-amount'].forEach((id) => { $('#' + id).value = ''; });
+    bindUser();
+    toast('ok_flexy_sent');
+    loadMyOrders();
+  } catch (err) {
+    fail(err, 'f_exec');
+  }
+}
+
+/* ===== admin_orders.html: الأدمن ينفّذ الطلبات أو يرفضها ===== */
+let ORDERS = {};   // 'uid/oid' -> الطلب
+
+function adminOrdersInit() { loadAdminOrders(); }
+
+async function loadAdminOrders() {
+  try {
+    const snap = await db.ref('orders').get();
+    ORDERS = {};
+    Object.entries(snap.val() || {}).forEach(([uid, list]) => {
+      Object.entries(list).forEach(([oid, o]) => { ORDERS[uid + '/' + oid] = { ...o, uid, oid }; });
+    });
+
+    const order = { pending: 0, done: 1, rejected: 2 };
+    const items = Object.values(ORDERS)
+      .sort((a, b) => (order[a.status] - order[b.status]) || (b.ts - a.ts))
+      .map((o) => ({
+        uid: o.uid, oid: o.oid, d: o.d, name: o.name, email: o.email, op: o.op, number: o.number, amount: fd(o.amount),
+        label: t('ord_' + o.status), cls: ORDER_CLASS[o.status] || '', isPending: o.status === 'pending'
+      }));
+    renderRows('#adm-orders', '#adm-orders-empty', 'tpl-adm-order', items, {
+      done: (d) => decideOrder(d.uid, d.oid, true),
+      reject: (d) => decideOrder(d.uid, d.oid, false)
+    });
+  } catch (err) {
+    fail(err, 'f_load');
+  }
+}
+
+async function decideOrder(uid, oid, ok) {
+  const o = ORDERS[uid + '/' + oid];
+  if (!o) return;
+
+  try {
+    const claim = await claimStatus(db.ref(`orders/${uid}/${oid}/status`), 'pending', ok ? 'done' : 'rejected');
+    if (!claim.committed) { toast('err_processed'); return loadAdminOrders(); }
+
+    if (!ok) {   // الرفض: يعود المبلغ إلى صاحب الطلب
+      await changeBalance(uid, o.amount);
+      await db.ref('tx/' + uid).push({
+        t: t('tx_flexy_refund'), amt: '+' + f(o.amount), note: t('note_flexy', { op: o.op, number: o.number }), d: nowText(), ts: Date.now()
+      });
+    }
+
+    await logAction(t(ok ? 'log_flexy_done' : 'log_flexy_reject'), `${o.email} — ${o.op} ${o.number} — ${fd(o.amount)}`);
+    toast(ok ? 'ok_order_done' : 'ok_order_rejected');
+    loadAdminOrders();
+  } catch (err) {
+    fail(err, 'f_exec');
+  }
+}
+
+
 /* ---------- 7) ربط الصفحات وتشغيل التطبيق ---------- */
 const PAGES = {
   login: {},
@@ -1973,6 +2071,8 @@ const PAGES = {
   admin_bots: { init: adminBotsInit },
   p2p: { init: p2pInit },
   admin_p2p: { init: adminP2pInit },
+  other: { init: otherInit },
+  admin_orders: { init: adminOrdersInit },
   trade: { init: tradeDraw, live: tradeDraw },
   wallet: { init: walletInit, live: walletInit },
   history: { init: historyInit },

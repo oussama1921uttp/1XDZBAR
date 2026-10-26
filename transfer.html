@@ -28,6 +28,7 @@
     <a href="favorites.html" data-nav="favorites">⭐ مفضلتي</a>
     <a href="bots.html" data-nav="bots">🤖 بوت</a>
     <a href="p2p.html" data-nav="p2p">🛒 P2P</a>
+    <a href="other.html" data-nav="other">🧩 معاملات أخرى</a>
     <a href="history.html" data-nav="history">🧾 السجل</a>
     <a href="add_money.html" data-nav="add_money">➕ إيداع</a>
     <a href="directing_money.html" data-nav="directing_money">➖ سحب</a>
@@ -38,6 +39,7 @@
     <a href="admin_trade.html" data-nav="admin_trade" data-admin hidden>📊 إدارة العملات</a>
     <a href="admin_bots.html" data-nav="admin_bots" data-admin hidden>🤖 أدمن بوت</a>
     <a href="admin_p2p.html" data-nav="admin_p2p" data-admin hidden>🛒 أدمن P2P</a>
+    <a href="admin_orders.html" data-nav="admin_orders" data-admin hidden>📱 أدمن المعاملات</a>
     <div class="sp"></div>
     <a href="login.html" onclick="logout(); return false;">🚪 خروج</a>
   </nav></div>
@@ -71,6 +73,19 @@
 
   <!-- كل رسائل الموقع (تظهر في toast أو في النوافذ) — عدّل النص هنا -->
   <div id="msgs" hidden>
+    <span data-k="ord_pending">قيد المراجعة</span>
+    <span data-k="ord_done">تم التنفيذ</span>
+    <span data-k="ord_rejected">مرفوض (أُعيد المبلغ)</span>
+    <span data-k="tx_flexy">فليكسي</span>
+    <span data-k="tx_flexy_refund">إرجاع فليكسي</span>
+    <span data-k="note_flexy">{op} — {number}</span>
+    <span data-k="confirm_flexy">شحن {op} للرقم {number} بمبلغ {amount}؟</span>
+    <span data-k="ok_flexy_sent">تم إرسال الطلب</span>
+    <span data-k="ok_order_done">تم تنفيذ الطلب</span>
+    <span data-k="ok_order_rejected">تم رفض الطلب وإرجاع المبلغ</span>
+    <span data-k="err_fx_number">الرقم لا يطابق المشغّل المختار</span>
+    <span data-k="log_flexy_done">تنفيذ فليكسي</span>
+    <span data-k="log_flexy_reject">رفض فليكسي</span>
     <span data-k="tx_p2p_buy">شراء من P2P</span>
     <span data-k="tx_p2p_sold">بيع في P2P</span>
     <span data-k="note_p2p_buy">{sym} × {qty} من {name}</span>

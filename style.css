@@ -395,3 +395,13 @@ button.big-star { font-size: 28px; vertical-align: middle; }
 .cm summary { cursor: pointer; color: var(--pr); font-size: 14px; }
 .cm-list { max-height: 160px; overflow-y: auto; margin: 6px 0; }
 .cmt { padding: 4px 0; font-size: 13px; border-bottom: 1px dashed var(--bd); }
+
+/* ========== معاملات أخرى ========== */
+.opts { display: flex; gap: 8px; margin-bottom: 6px; }
+.opt { padding: 6px 16px; border-radius: 99px; border: 1px solid var(--bd); color: var(--mu); }
+.opt.on { background: var(--grad); color: #fff; border-color: transparent; font-weight: 700; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip-opt { margin: 0; cursor: pointer; }
+.chip-opt input { display: none; }
+.chip-opt span { display: inline-block; padding: 8px 18px; border-radius: 12px; border: 1px solid var(--bd); background: var(--bg); color: var(--tx); font-size: 14px; }
+.chip-opt input:checked + span { background: var(--grad); color: #fff; border-color: transparent; font-weight: 700; }
